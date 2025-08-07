@@ -4,9 +4,9 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../providers/trip_provider.dart';
 import '../widgets/trip_card.dart';
-import '../utils/constants.dart';
+import '../models/trip.dart';
+import '../constants/api_constants.dart';
 import 'create_trip_screen.dart';
-import 'trip_detail_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class TripListScreen extends StatefulWidget {
@@ -21,6 +21,7 @@ class TripListScreen extends StatefulWidget {
 class _TripListScreenState extends State<TripListScreen> {
   String _userRole = 'user';
   String _userName = '';
+  String _userId = '';
 
   @override
   void initState() {
@@ -39,14 +40,16 @@ class _TripListScreenState extends State<TripListScreen> {
 
     final loadedRole = prefs.getString('vaiTro') ?? 'user';
     final loadedName = prefs.getString('hoTen') ?? '';
+    final loadedUserId = prefs.getString('userId') ?? '';
 
     setState(() {
       _userRole = loadedRole;
       _userName = loadedName;
+      _userId = loadedUserId;
     });
 
     // Kiểm tra lại vai trò từ server để đảm bảo chính xác
-    await _refreshUserRole();
+    // await _refreshUserRole(); // Tạm tắt vì API /auth/me không tồn tại
   }
 
   Future<void> _refreshUserRole() async {
@@ -118,6 +121,43 @@ class _TripListScreenState extends State<TripListScreen> {
     }
   }
 
+  List<dynamic> _getFilteredTrips(List<dynamic> allTrips) {
+    // Nếu là driver/tài xế, chỉ hiển thị chuyến được giao
+    if (_userRole == 'driver' || _userRole == 'tai_xe') {
+      return allTrips.where((trip) {
+        // Filter theo tên tài xế hoặc ID tài xế
+        return trip.taiXe == _userName ||
+            trip.taiXeId == _userId ||
+            trip.taiXe?.toLowerCase().contains(_userName.toLowerCase()) == true;
+      }).toList();
+    }
+
+    // Admin và user thấy tất cả chuyến
+    return allTrips;
+  }
+
+  String _getEmptyMessage() {
+    if (_userRole == 'admin') {
+      return 'Hãy tạo chuyến đi đầu tiên';
+    } else if (_userRole == 'driver' || _userRole == 'tai_xe') {
+      return 'Chưa có chuyến đi nào được giao cho bạn';
+    } else {
+      return 'Chưa có chuyến đi nào. Vui lòng quay lại sau.';
+    }
+  }
+
+  Color _getRoleBadgeColor() {
+    if (_userRole == 'admin') return Colors.red;
+    if (_userRole == 'driver' || _userRole == 'tai_xe') return Colors.blue;
+    return Colors.green;
+  }
+
+  String _getRoleBadgeText() {
+    if (_userRole == 'admin') return 'ADMIN';
+    if (_userRole == 'driver' || _userRole == 'tai_xe') return 'TÀI XẾ';
+    return 'USER';
+  }
+
   @override
   Widget build(BuildContext context) {
     final content = RefreshIndicator(
@@ -139,7 +179,9 @@ class _TripListScreenState extends State<TripListScreen> {
             );
           }
 
-          if (tripProvider.trips.isEmpty) {
+          final filteredTrips = _getFilteredTrips(tripProvider.trips);
+
+          if (filteredTrips.isEmpty) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -160,9 +202,7 @@ class _TripListScreenState extends State<TripListScreen> {
                   ),
                   SizedBox(height: 8),
                   Text(
-                    _userRole == 'admin'
-                        ? 'Hãy tạo chuyến đi đầu tiên'
-                        : 'Chưa có chuyến đi nào. Vui lòng quay lại sau.',
+                    _getEmptyMessage(),
                     style: TextStyle(fontSize: 14, color: Colors.grey[500]),
                   ),
                   SizedBox(height: 20),
@@ -196,14 +236,16 @@ class _TripListScreenState extends State<TripListScreen> {
           }
           return ListView.builder(
             padding: EdgeInsets.symmetric(vertical: 8),
-            itemCount: tripProvider.trips.length,
+            itemCount: filteredTrips.length,
             itemBuilder: (context, index) {
-              final trip = tripProvider.trips[index];
+              final trip = filteredTrips[index];
               return TripCard(
                 trip: trip,
+                isAdmin: _userRole == 'admin',
                 onTap: () {
                   Navigator.pushNamed(context, '/trip_detail', arguments: trip);
                 },
+                onDelete: _userRole == 'admin' ? () => _deleteTrip(trip) : null,
               );
             },
           );
@@ -220,16 +262,26 @@ class _TripListScreenState extends State<TripListScreen> {
           backgroundColor: Colors.blue,
           foregroundColor: Colors.white,
           actions: [
+            // QR Scanner button for drivers
+            if (_userRole == 'driver' || _userRole == 'tai_xe')
+              IconButton(
+                onPressed: () {
+                  // Navigate to QR Scanner
+                  Navigator.pushNamed(context, '/qr_scanner');
+                },
+                icon: const Icon(Icons.qr_code_scanner),
+                tooltip: 'Quét mã QR',
+              ),
             // Hiển thị role badge
             Container(
               margin: const EdgeInsets.only(right: 8),
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: _userRole == 'admin' ? Colors.red : Colors.green,
+                color: _getRoleBadgeColor(),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
-                _userRole == 'admin' ? 'ADMIN' : 'USER',
+                _getRoleBadgeText(),
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 12,
@@ -323,5 +375,52 @@ class _TripListScreenState extends State<TripListScreen> {
     }
 
     return content;
+  }
+
+  Future<void> _deleteTrip(Trip trip) async {
+    try {
+      // Hiển thị loading
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
+      );
+
+      final tripProvider = Provider.of<TripProvider>(context, listen: false);
+      final success = await tripProvider.deleteTrip(trip.id);
+
+      // Đóng loading dialog
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+
+      if (success) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Xóa chuyến đi thành công!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Không thể xóa chuyến đi. Vui lòng thử lại!'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      // Đóng loading dialog nếu có lỗi
+      if (mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 }

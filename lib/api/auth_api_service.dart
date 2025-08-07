@@ -1,7 +1,7 @@
 import 'dart:convert'; // Để mã hóa và giải mã JSON
 import 'package:http/http.dart' as http; // Package để gọi API
 import 'package:shared_preferences/shared_preferences.dart';
-import '../utils/constants.dart'; // Import file hằng số
+import '../constants/api_constants.dart'; // Import file hằng số
 
 class LoginResponse {
   final String token;

@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/trip.dart';
-import '../utils/constants.dart';
+import '../constants/api_constants.dart';
 
 class TripService {
   // Lấy tất cả chuyến đi (để hiển thị danh sách)
@@ -11,26 +11,12 @@ class TripService {
         '🚌 Starting to fetch all trips from: ${ApiConstants.baseUrl}/trips',
       );
 
-      // Thử gọi API trực tiếp với một tuyến đường cụ thể
-      final today = DateTime.now();
-      final dateString =
-          '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
-
-      print('📅 Using date: $dateString');
-
-      // Test với một tuyến cụ thể trước
-      final testUri = Uri.parse('${ApiConstants.baseUrl}/trips').replace(
-        queryParameters: {
-          'diemDi': 'Hà Nội',
-          'diemDen': 'Sapa',
-          'ngayDi': dateString,
-        },
-      );
-
-      print('🔗 Test URL: $testUri');
+      // Gọi API không có tham số để lấy tất cả chuyến đi
+      final uri = Uri.parse('${ApiConstants.baseUrl}/trips');
+      print('🔗 URL: $uri');
 
       final response = await http.get(
-        testUri,
+        uri,
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -122,6 +108,35 @@ class TripService {
     } catch (e) {
       print('Error getting trip: $e');
       throw Exception('Failed to get trip: $e');
+    }
+  }
+
+  // Xóa chuyến đi
+  static Future<bool> deleteTrip(String tripId) async {
+    try {
+      print('🗑️ Deleting trip: $tripId');
+
+      final uri = Uri.parse('${ApiConstants.baseUrl}/trips/$tripId');
+      print('🔗 DELETE URL: $uri');
+
+      final response = await http.delete(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      print('📡 Delete response status: ${response.statusCode}');
+      print('📄 Delete response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final jsonResponse = jsonDecode(response.body);
+        return jsonResponse['success'] == true;
+      } else {
+        print('❌ Failed to delete trip: ${response.statusCode}');
+        return false;
+      }
+    } catch (e) {
+      print('❌ Error deleting trip: $e');
+      return false;
     }
   }
 }

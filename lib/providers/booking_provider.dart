@@ -38,4 +38,36 @@ class BookingProvider with ChangeNotifier {
     if (result) await loadBookings();
     return result;
   }
+
+  Future<bool> createBookingWithPickup(
+    String tripId,
+    List<String> selectedSeats,
+    String pickupType,
+    String? customAddress,
+    String? pickupNote, {
+    String? customerName,
+    String? customerPhone,
+    String? customerEmail,
+  }) async {
+    final result = await BookingService.createBookingWithPickup(
+      tripId,
+      selectedSeats,
+      pickupType,
+      customAddress,
+      pickupNote,
+      customerName: customerName,
+      customerPhone: customerPhone,
+      customerEmail: customerEmail,
+    );
+    if (result) await loadBookings();
+    return result;
+  }
+
+  Future<Map<String, dynamic>> cancelBooking(String bookingId) async {
+    final result = await BookingService.cancelBooking(bookingId);
+    if (result['success'] == true) {
+      await loadBookings(); // Reload bookings after cancelling
+    }
+    return result;
+  }
 }

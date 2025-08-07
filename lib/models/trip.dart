@@ -23,7 +23,10 @@ class Trip {
   final int soGhe;
   final List<Seat> danhSachGhe;
   final String taiXe;
+  final String? taiXeId;
   final String bienSoXe;
+  final String? loaiXe;
+  final DateTime? gioKetThuc;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -36,7 +39,10 @@ class Trip {
     required this.soGhe,
     required this.danhSachGhe,
     required this.taiXe,
+    this.taiXeId,
     required this.bienSoXe,
+    this.loaiXe,
+    this.gioKetThuc,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -47,6 +53,9 @@ class Trip {
   // Getter để lấy số ghế còn trống
   int get soGheTrong =>
       danhSachGhe.where((ghe) => ghe.trangThai == 'trong').length;
+
+  // Getter để lấy tổng số ghế
+  int get tongSoGhe => soGhe;
 
   // Getter để format thời gian khởi hành
   String get gioKhoiHanh {
@@ -59,23 +68,34 @@ class Trip {
   }
 
   factory Trip.fromJson(Map<String, dynamic> json) {
-    return Trip(
-      id: json['_id'] ?? '',
-      nhaXe: json['nhaXe'] ?? 'Hà Phương',
-      diemDi: json['diemDi'] ?? '',
-      diemDen: json['diemDen'] ?? '',
-      thoiGianKhoiHanh: DateTime.parse(json['thoiGianKhoiHanh']),
-      soGhe: json['soGhe'] ?? 0,
-      danhSachGhe:
-          (json['danhSachGhe'] as List<dynamic>?)
-              ?.map((seat) => Seat.fromJson(seat))
-              .toList() ??
-          [],
-      taiXe: json['taiXe'] ?? 'Chưa cập nhật',
-      bienSoXe: json['bienSoXe'] ?? 'Chưa cập nhật',
-      createdAt: DateTime.parse(json['createdAt']),
-      updatedAt: DateTime.parse(json['updatedAt']),
-    );
+    try {
+      return Trip(
+        id: json['_id'] ?? '',
+        nhaXe: json['nhaXe'] ?? 'Hà Phương',
+        diemDi: json['diemDi'] ?? '',
+        diemDen: json['diemDen'] ?? '',
+        thoiGianKhoiHanh: DateTime.parse(json['thoiGianKhoiHanh']),
+        soGhe: json['soGhe'] ?? 0,
+        danhSachGhe:
+            (json['danhSachGhe'] as List<dynamic>?)
+                ?.map((seat) => Seat.fromJson(seat))
+                .toList() ??
+            [],
+        taiXe: json['taiXe'] ?? 'Chưa cập nhật',
+        taiXeId: json['taiXeId'],
+        bienSoXe: json['bienSoXe'] ?? 'Chưa cập nhật',
+        loaiXe: json['loaiXe'] ?? 'ghe_ngoi',
+        gioKetThuc: json['gioKetThuc'] != null
+            ? DateTime.parse(json['gioKetThuc'])
+            : null,
+        createdAt: DateTime.parse(json['createdAt']),
+        updatedAt: DateTime.parse(json['updatedAt']),
+      );
+    } catch (e) {
+      print('❌ Error parsing Trip from JSON: $e');
+      print('📄 JSON data: $json');
+      rethrow;
+    }
   }
 
   Map<String, dynamic> toJson() {

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import '../utils/constants.dart';
+import '../constants/api_constants.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -241,10 +241,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 },
                 child: Text(
                   'Đã có tài khoản? Đăng nhập ngay',
-                  style: TextStyle(
-                    color: Colors.blue,
-                    fontSize: 14,
-                  ),
+                  style: TextStyle(color: Colors.blue, fontSize: 14),
                 ),
               ),
             ],

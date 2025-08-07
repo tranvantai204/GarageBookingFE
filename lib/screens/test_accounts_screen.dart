@@ -31,7 +31,7 @@ class TestAccountsScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    
+
                     // Admin account
                     Container(
                       width: double.infinity,
@@ -46,7 +46,10 @@ class TestAccountsScreen extends StatelessWidget {
                         children: [
                           Row(
                             children: [
-                              Icon(Icons.admin_panel_settings, color: Colors.red),
+                              Icon(
+                                Icons.admin_panel_settings,
+                                color: Colors.red,
+                              ),
                               const SizedBox(width: 8),
                               Text(
                                 'ADMIN',
@@ -72,9 +75,9 @@ class TestAccountsScreen extends StatelessWidget {
                         ],
                       ),
                     ),
-                    
+
                     const SizedBox(height: 16),
-                    
+
                     // User account
                     Container(
                       width: double.infinity,
@@ -115,9 +118,9 @@ class TestAccountsScreen extends StatelessWidget {
                         ],
                       ),
                     ),
-                    
+
                     const SizedBox(height: 20),
-                    
+
                     Text(
                       'Hướng dẫn test:',
                       style: TextStyle(
@@ -126,12 +129,18 @@ class TestAccountsScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Text('1. Đăng nhập bằng tài khoản ADMIN để test chức năng tạo chuyến đi'),
-                    Text('2. Đăng nhập bằng tài khoản USER để test chức năng đặt vé'),
-                    Text('3. Kiểm tra sự khác biệt trong menu và quyền truy cập'),
-                    
+                    Text(
+                      '1. Đăng nhập bằng tài khoản ADMIN để test chức năng tạo chuyến đi',
+                    ),
+                    Text(
+                      '2. Đăng nhập bằng tài khoản USER để test chức năng đặt vé',
+                    ),
+                    Text(
+                      '3. Kiểm tra sự khác biệt trong menu và quyền truy cập',
+                    ),
+
                     const SizedBox(height: 20),
-                    
+
                     Row(
                       children: [
                         Expanded(
@@ -153,9 +162,9 @@ class TestAccountsScreen extends StatelessWidget {
                 ),
               ),
             ),
-            
+
             const SizedBox(height: 20),
-            
+
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
@@ -173,18 +182,12 @@ class TestAccountsScreen extends StatelessWidget {
                     const SizedBox(height: 8),
                     Text(
                       'Nếu tài khoản test chưa tồn tại trong hệ thống, bạn cần tạo chúng thông qua backend hoặc API.',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey[700],
-                      ),
+                      style: TextStyle(fontSize: 14, color: Colors.grey[700]),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       'Để tạo tài khoản admin, bạn có thể sử dụng MongoDB Compass hoặc script backend để thay đổi vaiTro từ "user" thành "admin".',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey[700],
-                      ),
+                      style: TextStyle(fontSize: 14, color: Colors.grey[700]),
                     ),
                   ],
                 ),

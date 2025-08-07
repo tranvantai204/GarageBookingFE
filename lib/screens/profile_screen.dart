@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'driver_profile_update_screen.dart';
+import 'admin_user_management_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final bool showAppBar;
-  
+
   const ProfileScreen({super.key, this.showAppBar = true});
 
   @override
@@ -30,13 +32,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
   }
 
+  String _getRoleDisplayName() {
+    switch (_userRole) {
+      case 'admin':
+        return 'QUẢN TRỊ VIÊN';
+      case 'driver':
+      case 'tai_xe':
+        return 'TÀI XẾ';
+      case 'user':
+      default:
+        return 'KHÁCH HÀNG';
+    }
+  }
+
+  Color _getRoleColor() {
+    switch (_userRole) {
+      case 'admin':
+        return Colors.red.shade700;
+      case 'driver':
+      case 'tai_xe':
+        return Colors.blue.shade700;
+      case 'user':
+      default:
+        return Colors.green.shade700;
+    }
+  }
+
   Future<void> _logout() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      
+
       // Xóa tất cả dữ liệu user
       await prefs.clear();
-      
+
       if (mounted) {
         // Hiển thị thông báo đăng xuất
         ScaffoldMessenger.of(context).showSnackBar(
@@ -45,7 +73,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             backgroundColor: Colors.green,
           ),
         );
-        
+
         // Chuyển về màn hình đăng nhập
         Navigator.of(context).pushReplacementNamed('/login');
       }
@@ -71,31 +99,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   CircleAvatar(
                     radius: 50,
                     backgroundColor: Colors.blue.shade100,
-                    child: Icon(
-                      Icons.person,
-                      size: 60,
-                      color: Colors.blue,
-                    ),
+                    child: Icon(Icons.person, size: 60, color: Colors.blue),
                   ),
                   SizedBox(height: 16),
                   Text(
                     _userName.isNotEmpty ? _userName : 'Người dùng',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                   ),
                   SizedBox(height: 8),
                   Container(
                     padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                     decoration: BoxDecoration(
-                      color: _userRole == 'admin' ? Colors.red.shade100 : Colors.green.shade100,
+                      color: _getRoleColor().withOpacity(0.2),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      _userRole == 'admin' ? 'QUẢN TRỊ VIÊN' : 'KHÁCH HÀNG',
+                      _getRoleDisplayName(),
                       style: TextStyle(
-                        color: _userRole == 'admin' ? Colors.red.shade700 : Colors.green.shade700,
+                        color: _getRoleColor(),
                         fontWeight: FontWeight.bold,
                         fontSize: 12,
                       ),
@@ -105,19 +126,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     SizedBox(height: 8),
                     Text(
                       _userPhone,
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.grey[600],
-                      ),
+                      style: TextStyle(fontSize: 16, color: Colors.grey[600]),
                     ),
                   ],
                 ],
               ),
             ),
           ),
-          
+
           SizedBox(height: 20),
-          
+
           // Menu options
           Card(
             child: Column(
@@ -141,6 +159,51 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     },
                   ),
                   Divider(height: 1),
+                  ListTile(
+                    leading: Icon(Icons.people, color: Colors.blue),
+                    title: Text('Quản lý người dùng'),
+                    trailing: Icon(Icons.arrow_forward_ios),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              const AdminUserManagementScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  Divider(height: 1),
+                ],
+                if (_userRole == 'driver' || _userRole == 'tai_xe') ...[
+                  ListTile(
+                    leading: Icon(Icons.edit, color: Colors.blue),
+                    title: Text('Cập nhật thông tin tài xế'),
+                    trailing: Icon(Icons.arrow_forward_ios),
+                    onTap: () async {
+                      final result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              const DriverProfileUpdateScreen(),
+                        ),
+                      );
+                      if (result == true) {
+                        // Reload user info if update was successful
+                        _loadUserInfo();
+                      }
+                    },
+                  ),
+                  Divider(height: 1),
+                  ListTile(
+                    leading: Icon(Icons.qr_code_scanner, color: Colors.blue),
+                    title: Text('Quét mã QR'),
+                    trailing: Icon(Icons.arrow_forward_ios),
+                    onTap: () {
+                      Navigator.pushNamed(context, '/qr_scanner');
+                    },
+                  ),
+                  Divider(height: 1),
                 ],
                 ListTile(
                   leading: Icon(Icons.info, color: Colors.orange),
@@ -157,7 +220,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           children: [
                             Text('Ứng dụng đặt xe Hà Phương'),
                             Text('Phiên bản: 1.0.0'),
-                            Text('Phát triển bởi: Hà Phương Team'),
+                            Text('Phát triển bởi: Tran Van Tai Development'),
                           ],
                         ),
                         actions: [

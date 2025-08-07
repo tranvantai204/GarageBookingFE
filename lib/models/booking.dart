@@ -6,6 +6,13 @@ class Booking {
   final int tongTien;
   final String maVe;
   final String trangThaiThanhToan;
+  final String? qrCode;
+  final String trangThaiCheckIn;
+  final DateTime? thoiGianCheckIn;
+  final String? nguoiCheckIn;
+  final String loaiDiemDon; // 'ben_xe' hoặc 'dia_chi_cu_the'
+  final String? diaChiDon; // Địa chỉ cụ thể nếu chọn 'dia_chi_cu_the'
+  final String? ghiChuDiemDon; // Ghi chú thêm về điểm đón
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -22,8 +29,15 @@ class Booking {
     required this.tongTien,
     required this.maVe,
     required this.trangThaiThanhToan,
+    required this.trangThaiCheckIn,
+    this.loaiDiemDon = 'ben_xe',
     required this.createdAt,
     required this.updatedAt,
+    this.qrCode,
+    this.thoiGianCheckIn,
+    this.nguoiCheckIn,
+    this.diaChiDon,
+    this.ghiChuDiemDon,
     this.diemDi,
     this.diemDen,
     this.thoiGianKhoiHanh,
@@ -44,6 +58,15 @@ class Booking {
       tongTien: json['tongTien'] ?? 0,
       maVe: json['maVe'] ?? '',
       trangThaiThanhToan: json['trangThaiThanhToan'] ?? 'chua_thanh_toan',
+      trangThaiCheckIn: json['trangThaiCheckIn'] ?? 'chua_check_in',
+      loaiDiemDon: json['loaiDiemDon'] ?? 'ben_xe',
+      qrCode: json['qrCode'],
+      thoiGianCheckIn: json['thoiGianCheckIn'] != null
+          ? DateTime.parse(json['thoiGianCheckIn'])
+          : null,
+      nguoiCheckIn: json['nguoiCheckIn'],
+      diaChiDon: json['diaChiDon'],
+      ghiChuDiemDon: json['ghiChuDiemDon'],
       createdAt: DateTime.parse(
         json['createdAt'] ?? DateTime.now().toIso8601String(),
       ),

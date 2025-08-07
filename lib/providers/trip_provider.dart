@@ -46,4 +46,26 @@ class TripProvider with ChangeNotifier {
     _isLoading = false;
     notifyListeners();
   }
+
+  Future<bool> deleteTrip(String tripId) async {
+    try {
+      print('🗑️ Deleting trip: $tripId');
+
+      final success = await TripService.deleteTrip(tripId);
+
+      if (success) {
+        // Xóa trip khỏi local list
+        _trips.removeWhere((trip) => trip.id == tripId);
+        notifyListeners();
+        print('✅ Trip deleted successfully');
+        return true;
+      } else {
+        print('❌ Failed to delete trip');
+        return false;
+      }
+    } catch (e) {
+      print('❌ Error deleting trip: $e');
+      return false;
+    }
+  }
 }

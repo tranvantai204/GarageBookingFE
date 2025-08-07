@@ -4,8 +4,16 @@ import '../models/trip.dart';
 class TripCard extends StatelessWidget {
   final Trip trip;
   final VoidCallback onTap;
+  final bool isAdmin;
+  final VoidCallback? onDelete;
 
-  const TripCard({super.key, required this.trip, required this.onTap});
+  const TripCard({
+    super.key,
+    required this.trip,
+    required this.onTap,
+    this.isAdmin = false,
+    this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -20,31 +28,51 @@ class TripCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  trip.nhaXe,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blue,
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.green,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                Expanded(
                   child: Text(
-                    '${trip.soGheTrong} ghế trống',
+                    trip.nhaXe,
                     style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
+                      fontSize: 18,
                       fontWeight: FontWeight.bold,
+                      color: Colors.blue,
                     ),
                   ),
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.green,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '${trip.soGheTrong} ghế trống',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    if (isAdmin && onDelete != null) ...[
+                      const SizedBox(width: 8),
+                      IconButton(
+                        onPressed: () => _showDeleteConfirmation(context),
+                        icon: const Icon(Icons.delete, color: Colors.red),
+                        tooltip: 'Xóa chuyến đi',
+                        constraints: const BoxConstraints(
+                          minWidth: 32,
+                          minHeight: 32,
+                        ),
+                        padding: const EdgeInsets.all(4),
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),
@@ -134,5 +162,53 @@ class TripCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  void _showDeleteConfirmation(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Xác nhận xóa'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Bạn có chắc chắn muốn xóa chuyến đi này?'),
+              const SizedBox(height: 8),
+              Text(
+                '${trip.diemDi} → ${trip.diemDen}',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              Text(
+                'Thời gian: ${_formatDateTime(trip.thoiGianKhoiHanh)}',
+                style: const TextStyle(color: Colors.grey),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Hủy'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                onDelete?.call();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Xóa'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  String _formatDateTime(DateTime dateTime) {
+    return '${dateTime.day}/${dateTime.month}/${dateTime.year} ${dateTime.hour}:${dateTime.minute.toString().padLeft(2, '0')}';
   }
 }

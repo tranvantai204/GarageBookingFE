@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: ha-phuong-mongodb-api
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: MONGO_URI
+        value: mongodb+srv://tuanas:tuanas123@cluster0.ixqhj.mongodb.net/HaPhuongApp?retryWrites=true&w=majority&appName=Cluster0
+    healthCheckPath: /
