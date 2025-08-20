@@ -1,49 +1,132 @@
-class ChatRoom {
+import 'user.dart';
+
+class ChatParticipant {
   final String id;
   final String name;
-  final List<String> participants;
+  final String role;
+  final String? avatar;
+
+  ChatParticipant({
+    required this.id,
+    required this.name,
+    required this.role,
+    this.avatar,
+  });
+
+  factory ChatParticipant.fromJson(Map<String, dynamic> json) {
+    return ChatParticipant(
+      id: json['id'] ?? '',
+      name: json['name'] ?? 'Unknown User',
+      role: json['role'] ?? 'user',
+      avatar: json['avatar'],
+    );
+  }
+}
+
+class LastMessage {
+  final String content;
+  final String senderId;
+  final String senderName;
+  final DateTime timestamp;
+  final String messageType;
+
+  LastMessage({
+    required this.content,
+    required this.senderId,
+    required this.senderName,
+    required this.timestamp,
+    required this.messageType,
+  });
+
+  factory LastMessage.fromJson(Map<String, dynamic> json) {
+    return LastMessage(
+      content: json['content'] ?? '',
+      senderId: json['senderId'] ?? '',
+      senderName: json['senderName'] ?? '',
+      timestamp: json['timestamp'] != null
+          ? DateTime.parse(json['timestamp'])
+          : DateTime.now(),
+      messageType: json['messageType'] ?? 'text',
+    );
+  }
+
+  LastMessage copyWith({
+    String? content,
+    String? senderId,
+    String? senderName,
+    DateTime? timestamp,
+    String? messageType,
+  }) {
+    return LastMessage(
+      content: content ?? this.content,
+      senderId: senderId ?? this.senderId,
+      senderName: senderName ?? this.senderName,
+      timestamp: timestamp ?? this.timestamp,
+      messageType: messageType ?? this.messageType,
+    );
+  }
+}
+
+class ChatRoom {
+  final String id;
+  final ChatParticipant participant;
+  final LastMessage? lastMessage;
+  final int unreadCount;
+  final DateTime updatedAt;
+
+  // Trạng thái hoạt động và đang soạn tin
+  final bool isOnline;
+  final bool isTyping;
+  final DateTime? lastActiveAt;
+
+  // Legacy fields for backward compatibility
+  final String name;
+  final List<User> participants;
   final List<String> participantNames;
   final List<String> participantRoles;
   final String? tripId;
   final String? tripRoute;
-  final String? lastMessage;
-  final int unreadCount;
   final bool isActive;
   final DateTime createdAt;
-  final DateTime updatedAt;
 
   ChatRoom({
     required this.id,
-    required this.name,
-    required this.participants,
-    required this.participantNames,
-    required this.participantRoles,
-    this.tripId,
-    this.tripRoute,
+    required this.participant,
     this.lastMessage,
     this.unreadCount = 0,
-    this.isActive = true,
-    required this.createdAt,
     required this.updatedAt,
-  });
+    this.isOnline = false,
+    this.isTyping = false,
+    this.lastActiveAt,
+    // Legacy fields
+    this.name = '',
+    this.participants = const [],
+    this.participantNames = const [],
+    this.participantRoles = const [],
+    this.tripId,
+    this.tripRoute,
+    this.isActive = true,
+    DateTime? createdAt,
+  }) : createdAt = createdAt ?? DateTime.now();
 
   factory ChatRoom.fromJson(Map<String, dynamic> json) {
+    // Handle both new format and legacy format
+    final participantData = json['participant'] ?? {};
+
     return ChatRoom(
-      id: json['_id'] ?? json['id'] ?? '',
-      name: json['name'] ?? '',
-      participants: List<String>.from(json['participants'] ?? []),
-      participantNames: List<String>.from(json['participantNames'] ?? []),
-      participantRoles: List<String>.from(json['participantRoles'] ?? []),
-      tripId: json['tripId'],
-      tripRoute: json['tripRoute'],
-      lastMessage: json['lastMessage'],
+      id: json['id'] ?? json['_id'] ?? '',
+      participant: ChatParticipant.fromJson(participantData),
+      lastMessage: json['lastMessage'] != null
+          ? LastMessage.fromJson(json['lastMessage'])
+          : null,
       unreadCount: json['unreadCount'] ?? 0,
-      isActive: json['isActive'] ?? true,
-      createdAt: json['createdAt'] != null 
-          ? DateTime.parse(json['createdAt']) 
+      updatedAt: json['updatedAt'] != null
+          ? DateTime.parse(json['updatedAt'])
           : DateTime.now(),
-      updatedAt: json['updatedAt'] != null 
-          ? DateTime.parse(json['updatedAt']) 
+      // Legacy fields for backward compatibility
+      name: participantData['name'] ?? 'Unknown Chat',
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'])
           : DateTime.now(),
     );
   }
@@ -67,30 +150,16 @@ class ChatRoom {
 
   ChatRoom copyWith({
     String? id,
-    String? name,
-    List<String>? participants,
-    List<String>? participantNames,
-    List<String>? participantRoles,
-    String? tripId,
-    String? tripRoute,
-    String? lastMessage,
+    ChatParticipant? participant,
+    LastMessage? lastMessage,
     int? unreadCount,
-    bool? isActive,
-    DateTime? createdAt,
     DateTime? updatedAt,
   }) {
     return ChatRoom(
       id: id ?? this.id,
-      name: name ?? this.name,
-      participants: participants ?? this.participants,
-      participantNames: participantNames ?? this.participantNames,
-      participantRoles: participantRoles ?? this.participantRoles,
-      tripId: tripId ?? this.tripId,
-      tripRoute: tripRoute ?? this.tripRoute,
+      participant: participant ?? this.participant,
       lastMessage: lastMessage ?? this.lastMessage,
       unreadCount: unreadCount ?? this.unreadCount,
-      isActive: isActive ?? this.isActive,
-      createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }

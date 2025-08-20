@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'driver_profile_update_screen.dart';
 import 'admin_user_management_screen.dart';
+import '../utils/event_bus.dart';
+import 'wallet_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final bool showAppBar;
@@ -16,6 +18,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _userName = '';
   String _userRole = '';
   String _userPhone = '';
+  int _walletBalance = 0;
+  bool _autoOpenChatOnForeground = true;
+  bool _showAdminTicker = true;
+  bool _callSystemPopupOnly = false;
 
   @override
   void initState() {
@@ -29,6 +35,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _userName = prefs.getString('hoTen') ?? '';
       _userRole = prefs.getString('vaiTro') ?? 'user';
       _userPhone = prefs.getString('soDienThoai') ?? '';
+      _walletBalance = prefs.getInt('viSoDu') ?? 0;
+      _autoOpenChatOnForeground =
+          prefs.getBool('autoOpenChatOnForeground') ?? true;
+      _showAdminTicker = prefs.getBool('showAdminTicker') ?? true;
+      _callSystemPopupOnly = prefs.getBool('callSystemPopupOnly') ?? false;
     });
   }
 
@@ -140,6 +151,78 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Card(
             child: Column(
               children: [
+                ListTile(
+                  leading: Icon(
+                    Icons.account_balance_wallet,
+                    color: Colors.teal,
+                  ),
+                  title: Text('Ví của tôi'),
+                  subtitle: Text(
+                    'Số dư: ' + _formatCurrency(_walletBalance) + 'đ',
+                  ),
+                  trailing: Icon(Icons.arrow_forward_ios),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const WalletScreen()),
+                    ).then((_) => _loadUserInfo());
+                  },
+                ),
+                Divider(height: 1),
+                SwitchListTile(
+                  secondary: Icon(
+                    Icons.chat_bubble_outline,
+                    color: Colors.purple,
+                  ),
+                  title: Text('Tự mở phòng chat khi đang mở app'),
+                  subtitle: Text(
+                    'Khi nhận tin nhắn mới trong lúc app đang hoạt động',
+                  ),
+                  value: _autoOpenChatOnForeground,
+                  onChanged: (v) async {
+                    final prefs = await SharedPreferences.getInstance();
+                    await prefs.setBool('autoOpenChatOnForeground', v);
+                    setState(() => _autoOpenChatOnForeground = v);
+                    EventBus().emit(Events.settingsChanged);
+                  },
+                ),
+                Divider(height: 1),
+                SwitchListTile(
+                  secondary: Icon(
+                    Icons.campaign_outlined,
+                    color: Colors.orange,
+                  ),
+                  title: Text('Hiển thị ticker thông báo Admin'),
+                  subtitle: Text('Thanh chạy thông báo dưới ứng dụng'),
+                  value: _showAdminTicker,
+                  onChanged: (v) async {
+                    final prefs = await SharedPreferences.getInstance();
+                    await prefs.setBool('showAdminTicker', v);
+                    setState(() => _showAdminTicker = v);
+                    EventBus().emit(Events.settingsChanged);
+                  },
+                ),
+                Divider(height: 1),
+                SwitchListTile(
+                  secondary: Icon(
+                    Icons.notification_important_outlined,
+                    color: Colors.red,
+                  ),
+                  title: Text(
+                    'Chỉ dùng popup hệ thống cho cuộc gọi (tránh đơ máy)',
+                  ),
+                  subtitle: Text(
+                    'Bật nếu máy bị treo khi hiển thị overlay trong-app',
+                  ),
+                  value: _callSystemPopupOnly,
+                  onChanged: (v) async {
+                    final prefs = await SharedPreferences.getInstance();
+                    await prefs.setBool('callSystemPopupOnly', v);
+                    setState(() => _callSystemPopupOnly = v);
+                  },
+                ),
+                Divider(height: 1),
+
                 ListTile(
                   leading: Icon(Icons.history, color: Colors.blue),
                   title: Text('Lịch sử đặt vé'),
@@ -280,5 +363,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     return content;
+  }
+
+  String _formatCurrency(int amount) {
+    return amount.toString().replaceAllMapped(
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (m) => m[1]! + ',',
+    );
   }
 }

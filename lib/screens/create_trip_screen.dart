@@ -5,6 +5,8 @@ import 'package:provider/provider.dart';
 import '../constants/api_constants.dart';
 import '../providers/user_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:image_picker/image_picker.dart';
+import '../api/vehicle_service.dart';
 
 class CreateTripScreen extends StatefulWidget {
   final bool showAppBar;
@@ -22,6 +24,9 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
   final _taiXeController = TextEditingController();
   final _bienSoXeController = TextEditingController();
   final _giaVeController = TextEditingController();
+  String? _selectedVehicleId;
+  String? _selectedVehicleLabel;
+  List<String> _selectedVehicleImages = [];
 
   DateTime? _selectedDateTime;
   int _soGhe = 16;
@@ -276,6 +281,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
           'bienSoXe': _bienSoXeController.text.trim().isEmpty
               ? 'Chưa cập nhật'
               : _bienSoXeController.text.trim(),
+          'vehicleId': _selectedVehicleId,
         }),
       );
 
@@ -495,12 +501,52 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
   @override
   Widget build(BuildContext context) {
     final content = SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
+      padding: const EdgeInsets.all(20.0),
       child: Form(
         key: _formKey,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.blue.shade600, Colors.blue.shade300],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text(
+                    'Tạo chuyến đi',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  SizedBox(height: 6),
+                  Text(
+                    'Nhập thông tin chi tiết chuyến đi',
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Chọn xe (tùy chọn)
+            Text(
+              'Chọn xe (tùy chọn)',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            _buildVehicleSelector(),
+            const SizedBox(height: 16),
             // Điểm đi
             _buildSearchableDropdown(
               label: 'Điểm đi',
@@ -554,28 +600,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            InkWell(
-              onTap: _selectDateTime,
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  _selectedDateTime == null
-                      ? 'Chọn ngày và giờ khởi hành'
-                      : '${_selectedDateTime!.day}/${_selectedDateTime!.month}/${_selectedDateTime!.year} - ${_selectedDateTime!.hour.toString().padLeft(2, '0')}:${_selectedDateTime!.minute.toString().padLeft(2, '0')}',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: _selectedDateTime == null
-                        ? Colors.grey[600]
-                        : Colors.black,
-                  ),
-                ),
-              ),
-            ),
+            _buildTimePicker(),
             const SizedBox(height: 16),
 
             // Số ghế
@@ -669,17 +694,10 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
             // Nút tạo chuyến đi
             SizedBox(
               width: double.infinity,
-              child: ElevatedButton(
+              child: ElevatedButton.icon(
                 onPressed: _isLoading ? null : _createTrip,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: _isLoading
+                icon: const Icon(Icons.add_road_rounded),
+                label: _isLoading
                     ? const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -702,6 +720,14 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue.shade600,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
               ),
             ),
           ],
@@ -775,6 +801,285 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
           icon: const Icon(Icons.arrow_drop_down, color: Colors.blue),
         ),
       ],
+    );
+  }
+
+  Widget _buildTimePicker() {
+    // preset every 2h and 3h within next 7 days
+    final now = DateTime.now();
+    final List<DateTime> presets = [];
+    for (int d = 0; d < 7; d++) {
+      final day = DateTime(now.year, now.month, now.day).add(Duration(days: d));
+      for (int h = 0; h < 24; h += 2) {
+        final t = DateTime(day.year, day.month, day.day, h);
+        if (t.isAfter(now)) presets.add(t);
+      }
+      for (int h = 1; h < 24; h += 3) {
+        final t = DateTime(day.year, day.month, day.day, h);
+        if (t.isAfter(now)) presets.add(t);
+      }
+    }
+    presets.sort();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: presets.take(12).map((dt) {
+            final label =
+                '${dt.day}/${dt.month} ${dt.hour.toString().padLeft(2, '0')}:00';
+            final bool selected =
+                _selectedDateTime != null &&
+                dt.year == _selectedDateTime!.year &&
+                dt.month == _selectedDateTime!.month &&
+                dt.day == _selectedDateTime!.day &&
+                dt.hour == _selectedDateTime!.hour;
+            return ChoiceChip(
+              label: Text(label),
+              selected: selected,
+              onSelected: (_) => setState(() => _selectedDateTime = dt),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 8),
+        ElevatedButton.icon(
+          onPressed: _selectDateTime,
+          icon: const Icon(Icons.access_time),
+          label: Text(
+            _selectedDateTime == null
+                ? 'Chọn khung giờ khác'
+                : 'Đã chọn: ${_selectedDateTime!.day}/${_selectedDateTime!.month}/${_selectedDateTime!.year} - ${_selectedDateTime!.hour.toString().padLeft(2, '0')}:${_selectedDateTime!.minute.toString().padLeft(2, '0')}',
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildVehicleSelector() {
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: _fetchVehicles(),
+      builder: (context, snapshot) {
+        final isLoading = snapshot.connectionState == ConnectionState.waiting;
+        final items = snapshot.data ?? [];
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            InputDecorator(
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String?>(
+                  isExpanded: true,
+                  value: _selectedVehicleId,
+                  hint: Text(
+                    isLoading ? 'Đang tải danh sách xe...' : 'Không chọn xe',
+                  ),
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('Không chọn xe'),
+                    ),
+                    ...items.map((v) {
+                      final label =
+                          '${v['hangXe'] ?? ''} ${v['tenXe'] ?? ''} - ${v['bienSoXe'] ?? ''}'
+                              .trim();
+                      return DropdownMenuItem<String?>(
+                        value: v['_id'] as String?,
+                        child: Text(
+                          label.isEmpty ? (v['bienSoXe'] ?? '') : label,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      );
+                    }),
+                  ],
+                  onChanged: (val) {
+                    setState(() {
+                      _selectedVehicleId = val;
+                      if (val == null) {
+                        _selectedVehicleLabel = null;
+                        _selectedVehicleImages = [];
+                      } else {
+                        final v = items.firstWhere(
+                          (e) => e['_id'] == val,
+                          orElse: () => {},
+                        );
+                        _selectedVehicleLabel =
+                            '${v['hangXe'] ?? ''} ${v['tenXe'] ?? ''} - ${v['bienSoXe'] ?? ''}'
+                                .trim();
+                        _bienSoXeController.text = (v['bienSoXe'] ?? '')
+                            .toString();
+                        _selectedVehicleType = (v['loaiXe'] ?? 'ghe_ngoi')
+                            .toString();
+                        _soGhe = (v['soGhe'] ?? _soGhe) as int;
+                        final imgs =
+                            (v['hinhAnh'] as List?)
+                                ?.map((e) => e.toString())
+                                .toList() ??
+                            [];
+                        _selectedVehicleImages = imgs;
+                      }
+                    });
+                  },
+                ),
+              ),
+            ),
+            if (_selectedVehicleLabel != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Đã chọn: $_selectedVehicleLabel',
+                style: const TextStyle(color: Colors.blue),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: _selectedVehicleId == null
+                        ? null
+                        : _addVehicleImages,
+                    icon: const Icon(Icons.add_photo_alternate),
+                    label: const Text('Thêm ảnh xe'),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    onPressed: _selectedVehicleId == null
+                        ? null
+                        : _addVehicleImageByUrl,
+                    icon: const Icon(Icons.link),
+                    label: const Text('Thêm từ URL'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              if (_selectedVehicleImages.isNotEmpty)
+                SizedBox(
+                  height: 80,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _selectedVehicleImages.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    itemBuilder: (context, index) {
+                      final url = _selectedVehicleImages[index];
+                      return ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(
+                          _displayImageUrl(url),
+                          width: 120,
+                          height: 80,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            width: 120,
+                            height: 80,
+                            color: Colors.grey.shade300,
+                            child: const Icon(Icons.broken_image),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchVehicles() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token') ?? '';
+      final resp = await http.get(
+        Uri.parse('${ApiConstants.baseUrl}/vehicles'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (resp.statusCode == 200) {
+        final data = jsonDecode(resp.body);
+        return (data['data'] as List).cast<Map<String, dynamic>>();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  Future<void> _addVehicleImages() async {
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickMultiImage(
+        imageQuality: 85,
+        maxWidth: 1920,
+      );
+      if (picked.isEmpty) return;
+      final paths = picked.map((x) => x.path).toList();
+      final urls = await VehicleService.uploadImages(paths);
+
+      // Merge ảnh mới vào preview cục bộ
+      setState(() {
+        _selectedVehicleImages.addAll(urls);
+      });
+
+      // Lưu vào vehicle bên server
+      if (_selectedVehicleId != null) {
+        await VehicleService.updateVehicle(_selectedVehicleId!, {
+          'hinhAnh': _selectedVehicleImages,
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Upload ảnh lỗi: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  String _displayImageUrl(String url) {
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    return ApiConstants.baseUrl + url;
+  }
+
+  Future<void> _addVehicleImageByUrl() async {
+    String url = '';
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Thêm ảnh từ URL'),
+        content: TextFormField(
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: 'Dán đường dẫn ảnh (http/https)',
+            border: OutlineInputBorder(),
+          ),
+          onChanged: (v) => url = v.trim(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (!url.startsWith('http')) return; // đơn giản
+              Navigator.pop(ctx);
+              setState(() => _selectedVehicleImages.add(url));
+              if (_selectedVehicleId != null) {
+                await VehicleService.updateVehicle(_selectedVehicleId!, {
+                  'hinhAnh': _selectedVehicleImages,
+                });
+              }
+            },
+            child: const Text('Thêm'),
+          ),
+        ],
+      ),
     );
   }
 }

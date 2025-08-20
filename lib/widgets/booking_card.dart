@@ -264,20 +264,23 @@ class BookingCard extends StatelessWidget {
   }
 
   bool _canCancelBooking() {
-    // Kiểm tra thời gian (chỉ được hủy trước 2 giờ khởi hành)
-    if (booking.thoiGianKhoiHanh != null) {
-      final now = DateTime.now();
-      final departureTime = booking.thoiGianKhoiHanh!;
-      final timeDiff = departureTime.difference(now);
+    // Không cho hủy nếu không có thời gian khởi hành
+    if (booking.thoiGianKhoiHanh == null) return false;
 
-      // Nếu còn ít hơn 2 giờ thì không được hủy
-      if (timeDiff.inHours < 2) {
-        return false;
-      }
+    final now = DateTime.now();
+    final departureTime = booking.thoiGianKhoiHanh!;
+
+    // Không cho hủy nếu đã quá giờ khởi hành
+    if (departureTime.isBefore(now)) return false;
+
+    // Không cho hủy nếu còn dưới 2 giờ
+    if (now.isAfter(departureTime.subtract(const Duration(hours: 2)))) {
+      return false;
     }
 
-    // Chỉ cho phép hủy vé chưa thanh toán (trừ admin)
-    // Tạm thời cho phép hủy tất cả để test
+    // Không cho hủy nếu đã thanh toán
+    if (booking.trangThaiThanhToan == 'da_thanh_toan') return false;
+
     return true;
   }
 }

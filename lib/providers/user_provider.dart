@@ -6,6 +6,10 @@ class UserProvider with ChangeNotifier {
   List<User> _users = [];
   bool _isLoading = false;
   String? _error;
+  DateTime? _lastLoadTime;
+
+  // Cache expiry time (5 minutes)
+  static const Duration _cacheExpiry = Duration(minutes: 5);
 
   List<User> get users => _users;
   bool get isLoading => _isLoading;
@@ -19,8 +23,23 @@ class UserProvider with ChangeNotifier {
   List<User> get customers =>
       _users.where((user) => user.vaiTro == 'user').toList();
 
-  Future<void> loadUsers() async {
-    print('🔄 UserProvider: Starting loadUsers...');
+  Future<void> loadUsers({bool forceReload = false}) async {
+    // Check if cache is still valid
+    final now = DateTime.now();
+    final cacheValid =
+        _lastLoadTime != null && now.difference(_lastLoadTime!) < _cacheExpiry;
+
+    // Skip loading if users already loaded, cache is valid, and not forcing reload
+    if (!forceReload && _users.isNotEmpty && !_isLoading && cacheValid) {
+      // print('✅ UserProvider: Using cached users (${_users.length} users)');
+      return;
+    }
+
+    if (!cacheValid && _users.isNotEmpty) {
+      // print('🔄 UserProvider: Cache expired, reloading users...');
+    }
+
+    // print('🔄 UserProvider: Starting loadUsers...');
     _isLoading = true;
     _error = null;
     notifyListeners();
@@ -29,9 +48,13 @@ class UserProvider with ChangeNotifier {
       _users = await UserService.getAllUsers();
       print('✅ UserProvider: Loaded ${_users.length} users');
       for (var user in _users) {
-        print('👤 User: ${user.hoTen} (${user.vaiTro})');
+        print('👤 User: ${user.hoTen} (ID: ${user.id}) [${user.vaiTro}]');
+        if (user.id.length != 24) {
+          print('    ⚠️ WARNING: Invalid ObjectId format for ${user.hoTen}!');
+        }
       }
       _error = null;
+      _lastLoadTime = DateTime.now(); // Update cache timestamp
     } catch (e) {
       _error = e.toString();
       print('❌ UserProvider Error loading users: $e');

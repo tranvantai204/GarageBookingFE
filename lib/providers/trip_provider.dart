@@ -15,7 +15,10 @@ class TripProvider with ChangeNotifier {
 
     try {
       print('🔄 TripProvider: Starting to load trips...');
-      _trips = await TripService.fetchAllTrips();
+      final all = await TripService.fetchAllTrips();
+      final now = DateTime.now();
+      // Ẩn các chuyến đã qua (đưa ra khỏi danh sách hiển thị)
+      _trips = all.where((t) => t.thoiGianKhoiHanh.isAfter(now)).toList();
       print('✅ TripProvider: Loaded ${_trips.length} trips');
     } catch (e) {
       print('❌ TripProvider: Error loading trips: $e');
@@ -47,11 +50,11 @@ class TripProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<bool> deleteTrip(String tripId) async {
+  Future<bool> deleteTrip(String tripId, String token) async {
     try {
       print('🗑️ Deleting trip: $tripId');
 
-      final success = await TripService.deleteTrip(tripId);
+      final success = await TripService.deleteTrip(tripId, token);
 
       if (success) {
         // Xóa trip khỏi local list

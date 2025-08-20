@@ -112,7 +112,7 @@ class TripService {
   }
 
   // Xóa chuyến đi
-  static Future<bool> deleteTrip(String tripId) async {
+  static Future<bool> deleteTrip(String tripId, String token) async {
     try {
       print('🗑️ Deleting trip: $tripId');
 
@@ -121,7 +121,10 @@ class TripService {
 
       final response = await http.delete(
         uri,
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
       );
 
       print('📡 Delete response status: ${response.statusCode}');

@@ -1,3 +1,7 @@
+//
+// import 'package:flutter/material.dart';
+import 'message_status.dart';
+
 class ChatMessage {
   final String id;
   final String chatRoomId;
@@ -6,7 +10,10 @@ class ChatMessage {
   final String senderRole;
   final String message;
   final DateTime timestamp;
+  final MessageStatus status;
   final bool isRead;
+  final DateTime? deliveredAt;
+  final DateTime? seenAt;
   final String? tripId;
 
   ChatMessage({
@@ -17,36 +24,61 @@ class ChatMessage {
     required this.senderRole,
     required this.message,
     required this.timestamp,
+    this.status = MessageStatus.sent,
     this.isRead = false,
+    this.deliveredAt,
+    this.seenAt,
     this.tripId,
   });
 
-  factory ChatMessage.fromJson(Map<String, dynamic> json) {
+  ChatMessage copyWith({
+    String? id,
+    String? chatRoomId,
+    String? senderId,
+    String? senderName,
+    String? senderRole,
+    String? message,
+    DateTime? timestamp,
+    MessageStatus? status,
+    bool? isRead,
+    DateTime? deliveredAt,
+    DateTime? seenAt,
+    String? tripId,
+  }) {
     return ChatMessage(
-      id: json['_id'] ?? json['id'] ?? '',
-      chatRoomId: json['chatRoomId'] ?? '',
-      senderId: json['senderId'] ?? '',
-      senderName: json['senderName'] ?? '',
-      senderRole: json['senderRole'] ?? 'user',
-      message: json['message'] ?? '',
-      timestamp: DateTime.parse(
-        json['timestamp'] ?? DateTime.now().toIso8601String(),
-      ),
-      isRead: json['isRead'] ?? false,
-      tripId: json['tripId'],
+      id: id ?? this.id,
+      chatRoomId: chatRoomId ?? this.chatRoomId,
+      senderId: senderId ?? this.senderId,
+      senderName: senderName ?? this.senderName,
+      senderRole: senderRole ?? this.senderRole,
+      message: message ?? this.message,
+      timestamp: timestamp ?? this.timestamp,
+      status: status ?? this.status,
+      isRead: isRead ?? this.isRead,
+      deliveredAt: deliveredAt ?? this.deliveredAt,
+      seenAt: seenAt ?? this.seenAt,
+      tripId: tripId ?? this.tripId,
     );
   }
 
-  Map<String, dynamic> toJson() {
-    return {
-      'chatRoomId': chatRoomId,
-      'senderId': senderId,
-      'senderName': senderName,
-      'senderRole': senderRole,
-      'message': message,
-      'timestamp': timestamp.toIso8601String(),
-      'isRead': isRead,
-      'tripId': tripId,
-    };
+  factory ChatMessage.fromJson(Map<String, dynamic> json) {
+    return ChatMessage(
+      id: json['id'] ?? json['_id'] ?? '',
+      chatRoomId: json['chatRoomId'] ?? json['chatId'] ?? '',
+      senderId: json['senderId'] ?? '',
+      senderName: json['senderName'] ?? '',
+      senderRole: json['senderRole'] ?? '',
+      message: json['message'] ?? json['content'] ?? '',
+      timestamp:
+          DateTime.tryParse(json['timestamp'] ?? json['createdAt'] ?? '') ??
+          DateTime.now(),
+      status: MessageStatusExtension.fromString(json['status'] ?? 'sent'),
+      isRead: json['isRead'] ?? false,
+      deliveredAt: json['deliveredAt'] != null
+          ? DateTime.tryParse(json['deliveredAt'])
+          : null,
+      seenAt: json['seenAt'] != null ? DateTime.tryParse(json['seenAt']) : null,
+      tripId: json['tripId'],
+    );
   }
 }

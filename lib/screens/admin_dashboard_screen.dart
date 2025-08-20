@@ -10,6 +10,18 @@ import 'create_trip_screen.dart';
 import 'revenue_report_screen.dart';
 import 'vehicle_management_screen.dart';
 import 'price_management_screen.dart';
+// Screens imported on demand in navigation methods
+// import 'overdue_bookings_screen.dart';
+// import 'voucher_management_screen.dart';
+import 'system_settings_screen.dart';
+import 'vip_customers_screen.dart';
+import 'broadcast_notification_screen.dart';
+import 'notifications_center_screen.dart';
+import 'overdue_bookings_screen.dart';
+import 'voucher_management_screen.dart';
+import 'admin_refunds_screen.dart';
+import 'admin_driver_feedbacks_screen.dart';
+import 'drivers_tracking_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -86,56 +98,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  Widget _buildHeader() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.indigo.shade600, Colors.indigo.shade400],
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(
-              Icons.admin_panel_settings,
-              color: Colors.white,
-              size: 32,
-            ),
-          ),
-          const SizedBox(width: 16),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Chào mừng Admin',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  'Quản lý hệ thống đặt vé xe khách',
-                  style: TextStyle(color: Colors.white70, fontSize: 14),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  // Removed unused legacy header
 
   Widget _buildModernHeader() {
     return Container(
@@ -280,123 +243,119 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             .where((b) => b.trangThaiThanhToan == 'da_thanh_toan')
             .fold(0, (sum, b) => sum + b.tongTien);
 
-        return Column(
-          children: [
-            // First row
-            Row(
-              children: [
-                Expanded(
-                  child: _buildStatCard(
-                    'Tổng vé đặt',
-                    totalBookings.toString(),
-                    Icons.confirmation_number,
-                    Colors.blue,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildStatCard(
-                    'Chuyến đi',
-                    totalTrips.toString(),
-                    Icons.directions_bus,
-                    Colors.green,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildStatCard(
-                    'Người dùng',
-                    totalUsers.toString(),
-                    Icons.people,
-                    Colors.purple,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildStatCard(
-                    'Tài xế',
-                    totalDrivers.toString(),
-                    Icons.drive_eta,
-                    Colors.orange,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            // Second row
-            Row(
-              children: [
-                Expanded(
-                  child: _buildStatCard(
-                    'Đã thanh toán',
-                    paidBookings.toString(),
-                    Icons.payment,
-                    Colors.teal,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildStatCard(
-                    'Doanh thu',
-                    '${_formatCurrency(totalRevenue)}đ',
-                    Icons.monetization_on,
-                    Colors.red,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                const Expanded(child: SizedBox()), // Empty space
-                const SizedBox(width: 12),
-                const Expanded(child: SizedBox()), // Empty space
-              ],
-            ),
-          ],
+        final items = <Widget>[
+          _buildMetricCard(
+            'Tổng vé đặt',
+            totalBookings.toString(),
+            Icons.confirmation_number,
+            Colors.blue,
+          ),
+          _buildMetricCard(
+            'Chuyến đi',
+            totalTrips.toString(),
+            Icons.directions_bus,
+            Colors.green,
+          ),
+          _buildMetricCard(
+            'Người dùng',
+            totalUsers.toString(),
+            Icons.people,
+            Colors.purple,
+          ),
+          _buildMetricCard(
+            'Tài xế',
+            totalDrivers.toString(),
+            Icons.drive_eta,
+            Colors.orange,
+          ),
+          _buildMetricCard(
+            'Đã thanh toán',
+            paidBookings.toString(),
+            Icons.payment,
+            Colors.teal,
+          ),
+          _buildMetricCard(
+            'Doanh thu',
+            '${_formatCurrency(totalRevenue)}đ',
+            Icons.monetization_on,
+            Colors.red,
+          ),
+        ];
+
+        final width = MediaQuery.of(context).size.width;
+        final crossAxisCount = width < 360 ? 2 : 3;
+        final childAspectRatio = crossAxisCount == 2 ? 1.05 : 0.9;
+
+        return GridView.count(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: crossAxisCount,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: childAspectRatio,
+          children: items,
         );
       },
     );
   }
 
-  Widget _buildStatCard(
+  Widget _buildMetricCard(
     String title,
     String value,
     IconData icon,
     Color color,
   ) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade100),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            spreadRadius: 1,
-            blurRadius: 6,
-            offset: const Offset(0, 2),
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, color: color, size: 32),
-          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(9),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: color, size: 18),
+          ),
+          const SizedBox(height: 6),
           Text(
             value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
               color: color,
+              letterSpacing: 0.2,
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 2),
           Text(
             title,
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
           ),
         ],
       ),
     );
   }
+
+  // Deprecated: kept during refactor; removed to avoid lint warning
 
   Widget _buildQuickActions() {
     return Column(
@@ -434,6 +393,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   context,
                   MaterialPageRoute(
                     builder: (context) => const AdminTripsScreen(),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildActionCard(
+                'Theo dõi chuyến',
+                'Vị trí tài xế realtime',
+                Icons.map,
+                Colors.teal,
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const DriversTrackingScreen(),
                   ),
                 ),
               ),
@@ -494,26 +468,40 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.grey.withOpacity(0.1),
-              spreadRadius: 1,
-              blurRadius: 6,
-              offset: const Offset(0, 2),
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
             ),
           ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: color, size: 32),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: color, size: 20),
+            ),
             const SizedBox(height: 12),
             Text(
               title,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 4),
             Text(
               subtitle,
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade600,
+                height: 1.2,
+              ),
             ),
           ],
         ),
@@ -571,6 +559,27 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               () => _navigateToNotifications(),
             ),
             _buildManagementCard(
+              'Vé quá hạn',
+              'Danh sách vé đã quá hạn',
+              Icons.warning_amber,
+              Colors.red,
+              () => _navigateToOverdueBookings(),
+            ),
+            _buildManagementCard(
+              'Voucher',
+              'Quản lý voucher khuyến mãi',
+              Icons.card_giftcard,
+              Colors.pink,
+              () => _navigateToVoucherManagement(),
+            ),
+            _buildManagementCard(
+              'Hoàn tiền',
+              'Duyệt yêu cầu hủy/hoàn',
+              Icons.undo,
+              Colors.teal,
+              () => _navigateToRefunds(),
+            ),
+            _buildManagementCard(
               'Khách hàng VIP',
               'Chương trình loyalty',
               Icons.star,
@@ -583,6 +592,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               Icons.settings,
               Colors.grey,
               () => _navigateToSystemSettings(),
+            ),
+            _buildManagementCard(
+              'Đánh giá tài xế',
+              'Xem/duyệt đánh giá',
+              Icons.reviews,
+              Colors.indigo,
+              () => _navigateToDriverFeedbacks(),
             ),
           ],
         ),
@@ -676,21 +692,92 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   void _navigateToNotifications() {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Chức năng đang phát triển')));
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.notifications_active),
+                title: const Text('Gửi thông báo (Broadcast)'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const BroadcastNotificationScreen(),
+                    ),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.inbox),
+                title: const Text('Hộp thư thông báo'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const NotificationsCenterScreen(),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   void _navigateToCustomerManagement() {
-    ScaffoldMessenger.of(
+    Navigator.push(
       context,
-    ).showSnackBar(const SnackBar(content: Text('Chức năng đang phát triển')));
+      MaterialPageRoute(builder: (context) => const VipCustomersScreen()),
+    );
   }
 
   void _navigateToSystemSettings() {
-    ScaffoldMessenger.of(
+    Navigator.push(
       context,
-    ).showSnackBar(const SnackBar(content: Text('Chức năng đang phát triển')));
+      MaterialPageRoute(builder: (context) => const SystemSettingsScreen()),
+    );
+  }
+
+  void _navigateToOverdueBookings() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const OverdueBookingsScreen()),
+    );
+  }
+
+  void _navigateToVoucherManagement() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const VoucherManagementScreen()),
+    );
+  }
+
+  void _navigateToRefunds() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const AdminRefundsScreen()),
+    );
+  }
+
+  void _navigateToDriverFeedbacks() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const AdminDriverFeedbacksScreen(),
+      ),
+    );
   }
 
   Widget _buildRecentActivities() {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/trip_provider.dart';
 import '../providers/booking_provider.dart';
 import '../models/trip.dart';
@@ -16,6 +17,11 @@ class AdminTripsScreen extends StatefulWidget {
 class _AdminTripsScreenState extends State<AdminTripsScreen> {
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
+  DateTime? _fromDate;
+  DateTime? _toDate;
+  bool _onlyWithTickets = false;
+  bool _onlyAvailableSeats = false;
+  String _paymentFilter = 'all'; // all | paid | unpaid
 
   @override
   void initState() {
@@ -34,14 +40,101 @@ class _AdminTripsScreenState extends State<AdminTripsScreen> {
   }
 
   List<Trip> _getFilteredTrips(List<Trip> trips) {
-    if (_searchQuery.isEmpty) return trips;
+    List<Trip> result = trips;
 
-    return trips.where((trip) {
-      return trip.diemDi.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          trip.diemDen.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          trip.bienSoXe.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          trip.taiXe.toLowerCase().contains(_searchQuery.toLowerCase());
-    }).toList();
+    // Text search
+    if (_searchQuery.isNotEmpty) {
+      result = result.where((trip) {
+        final q = _searchQuery.toLowerCase();
+        return trip.diemDi.toLowerCase().contains(q) ||
+            trip.diemDen.toLowerCase().contains(q) ||
+            trip.bienSoXe.toLowerCase().contains(q) ||
+            trip.taiXe.toLowerCase().contains(q);
+      }).toList();
+    }
+
+    // Date range filter (inclusive)
+    if (_fromDate != null || _toDate != null) {
+      final fromDate = _fromDate != null
+          ? DateTime(_fromDate!.year, _fromDate!.month, _fromDate!.day, 0, 0, 0)
+          : DateTime(2000);
+      final toDate = _toDate != null
+          ? DateTime(
+              _toDate!.year,
+              _toDate!.month,
+              _toDate!.day,
+              23,
+              59,
+              59,
+              999,
+            )
+          : DateTime(2100);
+      result = result.where((t) {
+        final dt = t.thoiGianKhoiHanh;
+        return !dt.isBefore(fromDate) && !dt.isAfter(toDate);
+      }).toList();
+    }
+
+    return result;
+  }
+
+  List<Trip> _applyAdvancedFilters(
+    List<Trip> trips,
+    BookingProvider bookingProvider,
+  ) {
+    List<Trip> result = List.of(trips);
+
+    if (_onlyAvailableSeats) {
+      result = result.where((trip) {
+        final booked = bookingProvider.bookings
+            .where((b) => b.tripId == trip.id)
+            .expand((b) => b.danhSachGhe)
+            .length;
+        return (trip.soGhe - booked) > 0;
+      }).toList();
+    }
+
+    if (_onlyWithTickets) {
+      result = result.where((trip) {
+        return bookingProvider.bookings.any((b) => b.tripId == trip.id);
+      }).toList();
+    }
+
+    if (_paymentFilter != 'all') {
+      result = result.where((trip) {
+        final related = bookingProvider.bookings.where(
+          (b) => b.tripId == trip.id,
+        );
+        if (_paymentFilter == 'paid') {
+          return related.any((b) => b.trangThaiThanhToan == 'da_thanh_toan');
+        } else {
+          return related.any((b) => b.trangThaiThanhToan != 'da_thanh_toan');
+        }
+      }).toList();
+    }
+
+    return result;
+  }
+
+  Future<void> _pickDateRange() async {
+    final initialDateRange = (_fromDate != null && _toDate != null)
+        ? DateTimeRange(start: _fromDate!, end: _toDate!)
+        : null;
+    final now = DateTime.now();
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(now.year - 2),
+      lastDate: DateTime(now.year + 2),
+      initialDateRange: initialDateRange,
+      helpText: 'Chọn khoảng ngày khởi hành',
+      locale: const Locale('vi'),
+    );
+    if (picked != null) {
+      setState(() {
+        _fromDate = picked.start;
+        _toDate = picked.end;
+      });
+    }
   }
 
   @override
@@ -69,6 +162,9 @@ class _AdminTripsScreenState extends State<AdminTripsScreen> {
           // Search Bar
           _buildSearchBar(),
 
+          // Filter Bar
+          _buildFilterBar(),
+
           // Trips List
           Expanded(
             child: Consumer2<TripProvider, BookingProvider>(
@@ -77,7 +173,11 @@ class _AdminTripsScreenState extends State<AdminTripsScreen> {
                   return const Center(child: CircularProgressIndicator());
                 }
 
-                final filteredTrips = _getFilteredTrips(tripProvider.trips);
+                final baseFiltered = _getFilteredTrips(tripProvider.trips);
+                final filteredTrips = _applyAdvancedFilters(
+                  baseFiltered,
+                  bookingProvider,
+                );
 
                 if (filteredTrips.isEmpty) {
                   return Center(
@@ -181,6 +281,75 @@ class _AdminTripsScreenState extends State<AdminTripsScreen> {
     );
   }
 
+  Widget _buildFilterBar() {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            InputChip(
+              avatar: const Icon(Icons.date_range, size: 16),
+              label: Text(
+                (_fromDate == null && _toDate == null)
+                    ? 'Khoảng ngày'
+                    : '${DateFormat('dd/MM').format(_fromDate!)} - ${DateFormat('dd/MM').format(_toDate!)}',
+              ),
+              onPressed: _pickDateRange,
+              onDeleted: (_fromDate != null || _toDate != null)
+                  ? () => setState(() {
+                      _fromDate = null;
+                      _toDate = null;
+                    })
+                  : null,
+            ),
+            const SizedBox(width: 8),
+            FilterChip(
+              label: const Text('Còn chỗ'),
+              selected: _onlyAvailableSeats,
+              onSelected: (v) => setState(() => _onlyAvailableSeats = v),
+            ),
+            const SizedBox(width: 8),
+            FilterChip(
+              label: const Text('Có vé'),
+              selected: _onlyWithTickets,
+              onSelected: (v) => setState(() => _onlyWithTickets = v),
+            ),
+            const SizedBox(width: 8),
+            DropdownButtonHideUnderline(
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: DropdownButton<String>(
+                  value: _paymentFilter,
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'all',
+                      child: Text('Thanh toán: Tất cả'),
+                    ),
+                    DropdownMenuItem(value: 'paid', child: Text('Chỉ đã TT')),
+                    DropdownMenuItem(
+                      value: 'unpaid',
+                      child: Text('Chỉ chưa TT'),
+                    ),
+                  ],
+                  onChanged: (v) => setState(() => _paymentFilter = v ?? 'all'),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildTripCard(Trip trip, List<Booking> bookings) {
     final bookedSeats = bookings.expand((b) => b.danhSachGhe).toList();
     final availableSeats = trip.soGhe - bookedSeats.length;
@@ -248,6 +417,22 @@ class _AdminTripsScreenState extends State<AdminTripsScreen> {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
+                  ),
+                  const SizedBox(width: 8),
+                  // Nút xóa chuyến đi
+                  IconButton(
+                    onPressed: () => _confirmDeleteTrip(trip, bookings),
+                    icon: const Icon(
+                      Icons.delete_outline,
+                      color: Colors.red,
+                      size: 20,
+                    ),
+                    tooltip: 'Xóa chuyến đi',
+                    constraints: const BoxConstraints(
+                      minWidth: 32,
+                      minHeight: 32,
+                    ),
+                    padding: const EdgeInsets.all(4),
                   ),
                 ],
               ),
@@ -325,6 +510,61 @@ class _AdminTripsScreenState extends State<AdminTripsScreen> {
                   ),
                 ],
               ),
+
+              const SizedBox(height: 12),
+
+              // Quick tickets preview
+              if (bookings.isNotEmpty)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Vé gần đây',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final b in bookings.take(6))
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: b.trangThaiThanhToan == 'da_thanh_toan'
+                                  ? Colors.green.shade50
+                                  : Colors.orange.shade50,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: b.trangThaiThanhToan == 'da_thanh_toan'
+                                    ? Colors.green.shade200
+                                    : Colors.orange.shade200,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.confirmation_number, size: 14),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Vé ${b.maVe} • ${b.danhSachGhe.join(', ')}',
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                        if (bookings.length > 6)
+                          Text(
+                            '+${bookings.length - 6} vé',
+                            style: TextStyle(color: Colors.grey.shade600),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
             ],
           ),
         ),
@@ -585,5 +825,125 @@ class _AdminTripsScreenState extends State<AdminTripsScreen> {
       RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
       (Match m) => '${m[1]},',
     );
+  }
+
+  Future<void> _confirmDeleteTrip(Trip trip, List<Booking> bookings) async {
+    // Kiểm tra xem có vé đã đặt không
+    if (bookings.isNotEmpty) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Không thể xóa'),
+          content: Text(
+            'Chuyến đi này đã có ${bookings.length} vé được đặt. Không thể xóa chuyến đi đã có khách đặt vé.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Đóng'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // Hiển thị dialog xác nhận xóa
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Xác nhận xóa'),
+        content: Text(
+          'Bạn có chắc chắn muốn xóa chuyến đi từ ${trip.diemDi} đến ${trip.diemDen}?\n\nThời gian: ${DateFormat('dd/MM/yyyy HH:mm').format(trip.thoiGianKhoiHanh)}\n\nHành động này không thể hoàn tác.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Xóa'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _deleteTrip(trip);
+    }
+  }
+
+  Future<void> _deleteTrip(Trip trip) async {
+    final tripProvider = Provider.of<TripProvider>(context, listen: false);
+
+    try {
+      // Lấy token từ SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token') ?? '';
+
+      if (token.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại!',
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Hiển thị loading
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) =>
+              const Center(child: CircularProgressIndicator()),
+        );
+      }
+
+      final success = await tripProvider.deleteTrip(trip.id, token);
+
+      // Đóng loading dialog
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+
+      if (success) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Xóa chuyến đi thành công!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Không thể xóa chuyến đi. Vui lòng thử lại!'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      // Đóng loading dialog nếu có lỗi
+      if (mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 }

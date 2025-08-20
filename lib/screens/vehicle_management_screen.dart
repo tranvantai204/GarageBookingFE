@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import '../models/vehicle.dart';
+import '../api/vehicle_service.dart';
+import '../constants/api_constants.dart';
+import 'package:image_picker/image_picker.dart';
 
 class VehicleManagementScreen extends StatefulWidget {
   const VehicleManagementScreen({super.key});
 
   @override
-  State<VehicleManagementScreen> createState() => _VehicleManagementScreenState();
+  State<VehicleManagementScreen> createState() =>
+      _VehicleManagementScreenState();
 }
 
 class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
@@ -13,46 +17,8 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
 
-  // Demo data
-  final List<Vehicle> _vehicles = [
-    Vehicle(
-      id: '1',
-      bienSoXe: '51A-12345',
-      loaiXe: 'limousine',
-      soGhe: 22,
-      taiXeId: 'driver1',
-      tenTaiXe: 'Nguyễn Văn A',
-      trangThai: 'hoat_dong',
-      ngayBaoTriCuoi: DateTime.now().subtract(const Duration(days: 30)),
-      ngayBaoTriTiep: DateTime.now().add(const Duration(days: 60)),
-      createdAt: DateTime.now().subtract(const Duration(days: 100)),
-      updatedAt: DateTime.now(),
-    ),
-    Vehicle(
-      id: '2',
-      bienSoXe: '51B-67890',
-      loaiXe: 'giuong_nam',
-      soGhe: 40,
-      taiXeId: 'driver2',
-      tenTaiXe: 'Trần Văn B',
-      trangThai: 'bao_tri',
-      ngayBaoTriCuoi: DateTime.now().subtract(const Duration(days: 5)),
-      ngayBaoTriTiep: DateTime.now().add(const Duration(days: 85)),
-      createdAt: DateTime.now().subtract(const Duration(days: 80)),
-      updatedAt: DateTime.now(),
-    ),
-    Vehicle(
-      id: '3',
-      bienSoXe: '51C-11111',
-      loaiXe: 'ghe_ngoi',
-      soGhe: 45,
-      trangThai: 'hoat_dong',
-      ngayBaoTriCuoi: DateTime.now().subtract(const Duration(days: 15)),
-      ngayBaoTriTiep: DateTime.now().add(const Duration(days: 75)),
-      createdAt: DateTime.now().subtract(const Duration(days: 60)),
-      updatedAt: DateTime.now(),
-    ),
-  ];
+  List<Vehicle> _vehicles = [];
+  bool _loading = false;
 
   @override
   void dispose() {
@@ -60,19 +26,87 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
     super.dispose();
   }
 
+  // Convert stored/entered path to a resolvable URL:
+  // - Relative API path => prefix with ApiConstants.baseUrl
+  // - Google Drive share/view links => convert to direct content URL when possible
+  // - Other http(s) links => return as-is
+  String _resolveImageUrl(String raw) {
+    final src = raw.trim();
+    if (src.isEmpty) return src;
+    if (src.startsWith('http://') || src.startsWith('https://')) {
+      // Handle common Google Drive formats
+      final uri = Uri.tryParse(src);
+      if (uri == null) return src;
+
+      // Format: https://drive.google.com/file/d/<fileId>/view?usp=sharing
+      final fileMatch = RegExp(r"/file/d/([A-Za-z0-9_-]+)/").firstMatch(src);
+      if (fileMatch != null) {
+        final id = fileMatch.group(1);
+        return 'https://drive.google.com/uc?export=view&id=' + id!;
+      }
+
+      // Format: https://drive.google.com/open?id=<fileId> or uc?id=<fileId>
+      final idParam = uri.queryParameters['id'];
+      if ((uri.host.contains('drive.google.com') ||
+              uri.host.contains('docs.google.com')) &&
+          idParam != null &&
+          idParam.isNotEmpty) {
+        return 'https://drive.google.com/uc?export=view&id=' + idParam;
+      }
+      return src; // other external links
+    }
+    // relative path from API
+    return ApiConstants.baseUrl + src;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVehicles();
+  }
+
+  Future<void> _loadVehicles() async {
+    setState(() => _loading = true);
+    try {
+      final list = await VehicleService.fetchVehicles();
+      setState(() {
+        _vehicles = list.map((e) => Vehicle.fromJson(e)).toList();
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Lỗi tải danh sách xe: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
   List<Vehicle> get _filteredVehicles {
     List<Vehicle> filtered = _vehicles;
 
-    // Filter by status
     if (_selectedFilter != 'all') {
-      filtered = filtered.where((vehicle) => vehicle.trangThai == _selectedFilter).toList();
+      filtered = filtered
+          .where((vehicle) => vehicle.trangThai == _selectedFilter)
+          .toList();
     }
 
-    // Filter by search query
     if (_searchQuery.isNotEmpty) {
       filtered = filtered.where((vehicle) {
-        return vehicle.bienSoXe.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-               (vehicle.tenTaiXe?.toLowerCase().contains(_searchQuery.toLowerCase()) ?? false);
+        return vehicle.bienSoXe.toLowerCase().contains(
+              _searchQuery.toLowerCase(),
+            ) ||
+            (vehicle.tenTaiXe?.toLowerCase().contains(
+                  _searchQuery.toLowerCase(),
+                ) ??
+                false) ||
+            ((vehicle.tenXe ?? '').toLowerCase().contains(
+              _searchQuery.toLowerCase(),
+            )) ||
+            ((vehicle.hangXe ?? '').toLowerCase().contains(
+              _searchQuery.toLowerCase(),
+            ));
       }).toList();
     }
 
@@ -87,10 +121,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: _addVehicle,
-          ),
+          IconButton(icon: const Icon(Icons.add), onPressed: _addVehicle),
         ],
       ),
       body: Container(
@@ -105,9 +136,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
           children: [
             _buildSearchAndFilter(),
             _buildStatistics(),
-            Expanded(
-              child: _buildVehicleList(),
-            ),
+            Expanded(child: _buildVehicleList()),
           ],
         ),
       ),
@@ -138,7 +167,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
               });
             },
             decoration: InputDecoration(
-              hintText: 'Tìm kiếm theo biển số, tài xế...',
+              hintText: 'Tìm kiếm theo biển số, hãng xe, tên xe...',
               prefixIcon: const Icon(Icons.search),
               suffixIcon: _searchQuery.isNotEmpty
                   ? IconButton(
@@ -193,35 +222,66 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
 
   Widget _buildStatistics() {
     final totalVehicles = _vehicles.length;
-    final activeVehicles = _vehicles.where((v) => v.trangThai == 'hoat_dong').length;
-    final maintenanceVehicles = _vehicles.where((v) => v.trangThai == 'bao_tri').length;
-    final needMaintenanceVehicles = _vehicles.where((v) => v.needMaintenance).length;
+    final activeVehicles = _vehicles
+        .where((v) => v.trangThai == 'hoat_dong')
+        .length;
+    final maintenanceVehicles = _vehicles
+        .where((v) => v.trangThai == 'bao_tri')
+        .length;
+    final needMaintenanceVehicles = _vehicles
+        .where((v) => v.needMaintenance)
+        .length;
 
     return Container(
       padding: const EdgeInsets.all(16),
       child: Row(
         children: [
           Expanded(
-            child: _buildStatCard('Tổng xe', totalVehicles.toString(), Icons.directions_bus, Colors.blue),
+            child: _buildStatCard(
+              'Tổng xe',
+              totalVehicles.toString(),
+              Icons.directions_bus,
+              Colors.blue,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: _buildStatCard('Hoạt động', activeVehicles.toString(), Icons.check_circle, Colors.green),
+            child: _buildStatCard(
+              'Hoạt động',
+              activeVehicles.toString(),
+              Icons.check_circle,
+              Colors.green,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: _buildStatCard('Bảo trì', maintenanceVehicles.toString(), Icons.build, Colors.orange),
+            child: _buildStatCard(
+              'Bảo trì',
+              maintenanceVehicles.toString(),
+              Icons.build,
+              Colors.orange,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: _buildStatCard('Cần bảo trì', needMaintenanceVehicles.toString(), Icons.warning, Colors.red),
+            child: _buildStatCard(
+              'Cần bảo trì',
+              needMaintenanceVehicles.toString(),
+              Icons.warning,
+              Colors.red,
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildStatCard(String title, String value, IconData icon, Color color) {
+  Widget _buildStatCard(
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -261,6 +321,10 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
   Widget _buildVehicleList() {
     final filteredVehicles = _filteredVehicles;
 
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
     if (filteredVehicles.isEmpty) {
       return Center(
         child: Column(
@@ -283,13 +347,16 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: filteredVehicles.length,
-      itemBuilder: (context, index) {
-        final vehicle = filteredVehicles[index];
-        return _buildVehicleCard(vehicle);
-      },
+    return RefreshIndicator(
+      onRefresh: _loadVehicles,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: filteredVehicles.length,
+        itemBuilder: (context, index) {
+          final vehicle = filteredVehicles[index];
+          return _buildVehicleCard(vehicle);
+        },
+      ),
     );
   }
 
@@ -311,7 +378,9 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: _getStatusColor(vehicle.trangThai).withOpacity(0.2),
+                      color: _getStatusColor(
+                        vehicle.trangThai,
+                      ).withOpacity(0.2),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(
@@ -343,12 +412,18 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                 ],
               ),
               const SizedBox(height: 16),
-              if (vehicle.tenTaiXe != null) ...[
+              if (vehicle.hangXe != null || vehicle.tenXe != null) ...[
                 Row(
                   children: [
-                    const Icon(Icons.person, color: Colors.blue, size: 16),
+                    const Icon(
+                      Icons.directions_bus_filled,
+                      color: Colors.blue,
+                      size: 16,
+                    ),
                     const SizedBox(width: 8),
-                    Text('Tài xế: ${vehicle.tenTaiXe}'),
+                    Text(
+                      '${vehicle.hangXe ?? ''} ${vehicle.tenXe ?? ''}'.trim(),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -358,23 +433,95 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                   children: [
                     Icon(
                       Icons.build,
-                      color: vehicle.needMaintenance ? Colors.red : Colors.orange,
+                      color: vehicle.needMaintenance
+                          ? Colors.red
+                          : Colors.orange,
                       size: 16,
                     ),
                     const SizedBox(width: 8),
                     Text(
                       'Bảo trì tiếp: ${_formatDate(vehicle.ngayBaoTriTiep!)}',
                       style: TextStyle(
-                        color: vehicle.needMaintenance ? Colors.red : Colors.orange,
+                        color: vehicle.needMaintenance
+                            ? Colors.red
+                            : Colors.orange,
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 8),
               ],
+              if (vehicle.hinhAnh.isNotEmpty) ...[
+                SizedBox(
+                  height: 70,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: vehicle.hinhAnh.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    itemBuilder: (context, i) => ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(
+                        _resolveImageUrl(vehicle.hinhAnh[i]),
+                        width: 100,
+                        height: 70,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          width: 100,
+                          height: 70,
+                          color: Colors.grey.shade200,
+                          alignment: Alignment.center,
+                          child: const Icon(
+                            Icons.broken_image,
+                            size: 20,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
+                  DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: vehicle.trangThai,
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'hoat_dong',
+                          child: Text('Hoạt động'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'bao_tri',
+                          child: Text('Bảo trì'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'ngung_hoat_dong',
+                          child: Text('Ngừng hoạt động'),
+                        ),
+                      ],
+                      onChanged: (v) async {
+                        if (v == null) return;
+                        try {
+                          await VehicleService.updateVehicle(vehicle.id, {
+                            'trangThai': v,
+                          });
+                          _loadVehicles();
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Cập nhật trạng thái lỗi: $e'),
+                              ),
+                            );
+                          }
+                        }
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   TextButton.icon(
                     onPressed: () => _editVehicle(vehicle),
                     icon: const Icon(Icons.edit, size: 16),
@@ -384,7 +531,10 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                   TextButton.icon(
                     onPressed: () => _deleteVehicle(vehicle),
                     icon: const Icon(Icons.delete, size: 16, color: Colors.red),
-                    label: const Text('Xóa', style: TextStyle(color: Colors.red)),
+                    label: const Text(
+                      'Xóa',
+                      style: TextStyle(color: Colors.red),
+                    ),
                   ),
                 ],
               ),
@@ -483,14 +633,44 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
               _buildDetailRow('Loại xe:', vehicle.loaiXeDisplayName),
               _buildDetailRow('Số ghế:', vehicle.soGhe.toString()),
               _buildDetailRow('Trạng thái:', vehicle.trangThaiDisplayName),
-              if (vehicle.tenTaiXe != null)
-                _buildDetailRow('Tài xế:', vehicle.tenTaiXe!),
-              if (vehicle.ngayBaoTriCuoi != null)
-                _buildDetailRow('Bảo trì cuối:', _formatDate(vehicle.ngayBaoTriCuoi!)),
-              if (vehicle.ngayBaoTriTiep != null)
-                _buildDetailRow('Bảo trì tiếp:', _formatDate(vehicle.ngayBaoTriTiep!)),
+              if (vehicle.hangXe != null || vehicle.tenXe != null)
+                _buildDetailRow(
+                  'Xe:',
+                  '${vehicle.hangXe ?? ''} ${vehicle.tenXe ?? ''}'.trim(),
+                ),
               if (vehicle.ghiChu != null)
                 _buildDetailRow('Ghi chú:', vehicle.ghiChu!),
+              if (vehicle.hinhAnh.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 80,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: vehicle.hinhAnh.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    itemBuilder: (_, i) => ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(
+                        _resolveImageUrl(vehicle.hinhAnh[i]),
+                        width: 120,
+                        height: 80,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          width: 120,
+                          height: 80,
+                          color: Colors.grey.shade200,
+                          alignment: Alignment.center,
+                          child: const Icon(
+                            Icons.broken_image,
+                            size: 22,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -524,15 +704,11 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
   }
 
   void _addVehicle() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Chức năng thêm xe đang phát triển')),
-    );
+    _openVehicleForm();
   }
 
   void _editVehicle(Vehicle vehicle) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Chỉnh sửa xe ${vehicle.bienSoXe}')),
-    );
+    _openVehicleForm(vehicle: vehicle);
   }
 
   void _deleteVehicle(Vehicle vehicle) {
@@ -549,9 +725,9 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              setState(() {
-                _vehicles.removeWhere((v) => v.id == vehicle.id);
-              });
+              VehicleService.deleteVehicle(
+                vehicle.id,
+              ).then((_) => _loadVehicles());
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text('Đã xóa xe ${vehicle.bienSoXe}')),
               );
@@ -561,6 +737,323 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  void _openVehicleForm({Vehicle? vehicle}) {
+    final formKey = GlobalKey<FormState>();
+    final bienSoCtrl = TextEditingController(text: vehicle?.bienSoXe);
+    final tenXeCtrl = TextEditingController(text: vehicle?.tenXe);
+    final hangXeCtrl = TextEditingController(text: vehicle?.hangXe);
+    final moTaCtrl = TextEditingController(text: vehicle?.moTa);
+    int soGhe = vehicle?.soGhe ?? 16;
+    String loaiXe = vehicle?.loaiXe ?? 'ghe_ngoi';
+    List<String> images = List<String>.from(vehicle?.hinhAnh ?? const []);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom,
+            left: 16,
+            right: 16,
+            top: 16,
+          ),
+          child: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    vehicle == null ? 'Thêm xe' : 'Sửa xe',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: bienSoCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Biển số xe',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (v) =>
+                        (v == null || v.isEmpty) ? 'Nhập biển số' : null,
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: hangXeCtrl,
+                          decoration: const InputDecoration(
+                            labelText: 'Hãng xe',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextFormField(
+                          controller: tenXeCtrl,
+                          decoration: const InputDecoration(
+                            labelText: 'Tên xe',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: loaiXe,
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'ghe_ngoi',
+                        child: Text('Ghế ngồi'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'giuong_nam',
+                        child: Text('Giường nằm'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'limousine',
+                        child: Text('Limousine'),
+                      ),
+                    ],
+                    onChanged: (v) => loaiXe = v ?? loaiXe,
+                    decoration: const InputDecoration(
+                      labelText: 'Loại xe',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<int>(
+                    value: soGhe,
+                    items: [16, 20, 22, 28, 32, 40, 45]
+                        .map(
+                          (e) =>
+                              DropdownMenuItem(value: e, child: Text('$e ghế')),
+                        )
+                        .toList(),
+                    onChanged: (v) => soGhe = v ?? soGhe,
+                    decoration: const InputDecoration(
+                      labelText: 'Số ghế',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: moTaCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Mô tả',
+                      border: OutlineInputBorder(),
+                    ),
+                    maxLines: 3,
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      ElevatedButton.icon(
+                        onPressed: () async {
+                          final picked = await ImagePicker().pickMultiImage(
+                            imageQuality: 85,
+                            maxWidth: 1920,
+                          );
+                          if (picked.isEmpty) return;
+                          final urls = await VehicleService.uploadImages(
+                            picked.map((e) => e.path).toList(),
+                          );
+                          images.addAll(urls);
+                          setState(() {});
+                        },
+                        icon: const Icon(Icons.add_photo_alternate),
+                        label: const Text('Thêm ảnh'),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton.icon(
+                        onPressed: () async {
+                          String url = '';
+                          await showDialog(
+                            context: context,
+                            builder: (dCtx) => AlertDialog(
+                              title: const Text('Thêm ảnh từ URL'),
+                              content: TextFormField(
+                                autofocus: true,
+                                decoration: const InputDecoration(
+                                  hintText: 'Dán đường dẫn ảnh (http/https)',
+                                  border: OutlineInputBorder(),
+                                ),
+                                onChanged: (v) => url = v.trim(),
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(dCtx),
+                                  child: const Text('Hủy'),
+                                ),
+                                ElevatedButton(
+                                  onPressed: () {
+                                    if (url.startsWith('http')) {
+                                      Navigator.pop(dCtx);
+                                      images.add(url);
+                                      setState(() {});
+                                    }
+                                  },
+                                  child: const Text('Thêm'),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.link),
+                        label: const Text('Thêm từ URL'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  if (images.isNotEmpty)
+                    SizedBox(
+                      height: 80,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: images.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 8),
+                        itemBuilder: (_, i) => Stack(
+                          key: ValueKey('img_$i'),
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.network(
+                                _resolveImageUrl(images[i]),
+                                width: 120,
+                                height: 80,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => Container(
+                                  width: 120,
+                                  height: 80,
+                                  color: Colors.grey.shade200,
+                                  alignment: Alignment.center,
+                                  child: const Icon(
+                                    Icons.broken_image,
+                                    size: 20,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              right: 4,
+                              top: 4,
+                              child: InkWell(
+                                onTap: () async {
+                                  try {
+                                    if (i < 0 || i >= images.length) return;
+                                    final next = List<String>.from(images);
+                                    next.removeAt(i);
+                                    setState(() {
+                                      images = next;
+                                    });
+                                    // Persist immediately if editing an existing vehicle
+                                    if (vehicle != null) {
+                                      await VehicleService.updateVehicle(
+                                        vehicle.id,
+                                        {'hinhAnh': next},
+                                      );
+                                    }
+                                  } catch (e) {
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            'Xóa ảnh lỗi: ' + e.toString(),
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  }
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.all(2),
+                                  decoration: const BoxDecoration(
+                                    color: Colors.black54,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.close,
+                                    color: Colors.white,
+                                    size: 16,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        if (!formKey.currentState!.validate()) return;
+                        try {
+                          if (vehicle == null) {
+                            await VehicleService.createVehicle(
+                              bienSoXe: bienSoCtrl.text.trim(),
+                              loaiXe: loaiXe,
+                              soGhe: soGhe,
+                              tenXe: tenXeCtrl.text.trim().isEmpty
+                                  ? null
+                                  : tenXeCtrl.text.trim(),
+                              hangXe: hangXeCtrl.text.trim().isEmpty
+                                  ? null
+                                  : hangXeCtrl.text.trim(),
+                              hinhAnh: images,
+                              moTa: moTaCtrl.text.trim().isEmpty
+                                  ? null
+                                  : moTaCtrl.text.trim(),
+                            );
+                          } else {
+                            await VehicleService.updateVehicle(vehicle.id, {
+                              'bienSoXe': bienSoCtrl.text.trim(),
+                              'loaiXe': loaiXe,
+                              'soGhe': soGhe,
+                              'tenXe': tenXeCtrl.text.trim(),
+                              'hangXe': hangXeCtrl.text.trim(),
+                              'hinhAnh': images,
+                              'moTa': moTaCtrl.text.trim(),
+                            });
+                          }
+                          if (mounted) Navigator.pop(ctx);
+                          _loadVehicles();
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Lưu xe lỗi: $e')),
+                            );
+                          }
+                        }
+                      },
+                      icon: const Icon(Icons.save),
+                      label: Text(vehicle == null ? 'Thêm xe' : 'Lưu thay đổi'),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

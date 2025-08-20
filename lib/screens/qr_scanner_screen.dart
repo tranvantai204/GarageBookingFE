@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:provider/provider.dart';
+import '../providers/booking_provider.dart';
 
 class QRScannerScreen extends StatefulWidget {
-  const QRScannerScreen({super.key});
+  final String? tripId; // để server có thể cho phép check-in sớm 30 phút
+  const QRScannerScreen({super.key, this.tripId});
 
   @override
   State<QRScannerScreen> createState() => _QRScannerScreenState();
@@ -11,7 +15,8 @@ class QRScannerScreen extends StatefulWidget {
 class _QRScannerScreenState extends State<QRScannerScreen> {
   final TextEditingController _manualCodeController = TextEditingController();
   bool _isScanning = false;
-  String _scannedCode = '';
+  // Lưu ý: không cần giữ mã đã quét ở state
+  final MobileScannerController _cameraController = MobileScannerController();
 
   @override
   void dispose() {
@@ -69,7 +74,10 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
           gradient: LinearGradient(
-            colors: [Colors.green.withOpacity(0.1), Colors.green.withOpacity(0.05)],
+            colors: [
+              Colors.green.withOpacity(0.1),
+              Colors.green.withOpacity(0.05),
+            ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -90,10 +98,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
                 const SizedBox(width: 12),
                 const Text(
                   'Hướng dẫn sử dụng',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ],
             ),
@@ -119,50 +124,47 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            Container(
-              width: 200,
-              height: 200,
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.green, width: 2),
+            SizedBox(
+              width: 240,
+              height: 240,
+              child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                color: _isScanning ? Colors.green.withOpacity(0.1) : Colors.grey.withOpacity(0.1),
-              ),
-              child: _isScanning
-                  ? Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const CircularProgressIndicator(color: Colors.green),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'Đang quét...',
-                          style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 8),
-                        TextButton(
-                          onPressed: _stopScanning,
-                          child: const Text('Dừng quét'),
-                        ),
-                      ],
-                    )
-                  : Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.qr_code_scanner,
-                          size: 64,
-                          color: Colors.grey.shade400,
-                        ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'Vùng quét QR',
-                          style: TextStyle(
-                            color: Colors.grey,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.green, width: 2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: _isScanning
+                      ? MobileScanner(
+                          controller: _cameraController,
+                          onDetect: (capture) {
+                            final barcodes = capture.barcodes;
+                            if (barcodes.isNotEmpty) {
+                              final raw = barcodes.first.rawValue ?? '';
+                              _stopScanning();
+                              _processScannedCode(raw);
+                            }
+                          },
+                        )
+                      : Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.qr_code_scanner,
+                                size: 64,
+                                color: Colors.grey.shade400,
+                              ),
+                              const SizedBox(height: 8),
+                              const Text(
+                                'Vùng quét QR',
+                                style: TextStyle(color: Colors.grey),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
+                ),
+              ),
             ),
             const SizedBox(height: 24),
             SizedBox(
@@ -198,10 +200,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
           children: [
             const Text(
               'Nhập mã thủ công',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -251,9 +250,24 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
 
   Widget _buildRecentScans() {
     final recentScans = [
-      {'code': 'HP240115001', 'passenger': 'Nguyễn Văn A', 'time': '08:30', 'status': 'success'},
-      {'code': 'HP240115002', 'passenger': 'Trần Thị B', 'time': '08:25', 'status': 'success'},
-      {'code': 'HP240115003', 'passenger': 'Lê Văn C', 'time': '08:20', 'status': 'error'},
+      {
+        'code': 'HP240115001',
+        'passenger': 'Nguyễn Văn A',
+        'time': '08:30',
+        'status': 'success',
+      },
+      {
+        'code': 'HP240115002',
+        'passenger': 'Trần Thị B',
+        'time': '08:25',
+        'status': 'success',
+      },
+      {
+        'code': 'HP240115003',
+        'passenger': 'Lê Văn C',
+        'time': '08:20',
+        'status': 'error',
+      },
     ];
 
     return Card(
@@ -269,10 +283,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
               children: [
                 const Text(
                   'Lịch sử quét gần đây',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
                 TextButton(
                   onPressed: _clearHistory,
@@ -293,7 +304,9 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
               )
             else
               Column(
-                children: recentScans.map((scan) => _buildScanHistoryItem(scan)).toList(),
+                children: recentScans
+                    .map((scan) => _buildScanHistoryItem(scan))
+                    .toList(),
               ),
           ],
         ),
@@ -303,7 +316,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
 
   Widget _buildScanHistoryItem(Map<String, String> scan) {
     final isSuccess = scan['status'] == 'success';
-    
+
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
@@ -342,20 +355,14 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
                 ),
                 Text(
                   scan['passenger']!,
-                  style: const TextStyle(
-                    color: Colors.grey,
-                    fontSize: 12,
-                  ),
+                  style: const TextStyle(color: Colors.grey, fontSize: 12),
                 ),
               ],
             ),
           ),
           Text(
             scan['time']!,
-            style: const TextStyle(
-              color: Colors.grey,
-              fontSize: 12,
-            ),
+            style: const TextStyle(color: Colors.grey, fontSize: 12),
           ),
         ],
       ),
@@ -366,29 +373,17 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
     setState(() {
       _isScanning = true;
     });
-
-    // Simulate scanning process
-    Future.delayed(const Duration(seconds: 3), () {
-      if (_isScanning) {
-        _simulateSuccessfulScan();
-      }
-    });
   }
 
   void _stopScanning() {
     setState(() {
       _isScanning = false;
     });
+    _cameraController.stop();
   }
 
-  void _simulateSuccessfulScan() {
-    setState(() {
-      _isScanning = false;
-      _scannedCode = 'HP240115004';
-    });
-
-    _processScannedCode(_scannedCode);
-  }
+  // Deprecated: no longer simulating scans. Kept for compatibility.
+  // void _simulateSuccessfulScan() {}
 
   void _validateManualCode() {
     final code = _manualCodeController.text.trim();
@@ -405,9 +400,12 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
     _processScannedCode(code);
   }
 
-  void _processScannedCode(String code) {
-    // Simulate ticket validation
-    final isValid = code.startsWith('HP') && code.length >= 8;
+  Future<void> _processScannedCode(String code) async {
+    final resp = await Provider.of<BookingProvider>(
+      context,
+      listen: false,
+    ).checkInByQr(code, tripId: widget.tripId);
+    final success = resp['success'] == true;
 
     showDialog(
       context: context,
@@ -415,11 +413,11 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
         title: Row(
           children: [
             Icon(
-              isValid ? Icons.check_circle : Icons.error,
-              color: isValid ? Colors.green : Colors.red,
+              success ? Icons.check_circle : Icons.error,
+              color: success ? Colors.green : Colors.red,
             ),
             const SizedBox(width: 8),
-            Text(isValid ? 'Vé hợp lệ' : 'Vé không hợp lệ'),
+            Text(success ? 'Check-in thành công' : 'Check-in thất bại'),
           ],
         ),
         content: Column(
@@ -427,17 +425,14 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Mã vé: $code'),
-            if (isValid) ...[
+            if (success) ...[
               const SizedBox(height: 8),
-              const Text('Hành khách: Nguyễn Văn D'),
-              const Text('Chuyến: TP.HCM → Bình Thuận'),
-              const Text('Ghế: A12'),
-              const Text('Trạng thái: Chưa lên xe'),
+              Text(resp['message'] ?? ''),
             ] else ...[
               const SizedBox(height: 8),
-              const Text(
-                'Vé không tồn tại hoặc đã được sử dụng',
-                style: TextStyle(color: Colors.red),
+              Text(
+                resp['message'] ?? 'Vé không tồn tại hoặc đã được sử dụng',
+                style: const TextStyle(color: Colors.red),
               ),
             ],
           ],
@@ -447,7 +442,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
             onPressed: () => Navigator.pop(context),
             child: const Text('Đóng'),
           ),
-          if (isValid)
+          if (success)
             ElevatedButton(
               onPressed: () {
                 Navigator.pop(context);
@@ -545,10 +540,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
               Text('• Mã vé có định dạng: HP + ngày + số thứ tự'),
               Text('• VD: HP240115001 (HP + 24/01/15 + 001)'),
               SizedBox(height: 12),
-              Text(
-                'Lưu ý:',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
+              Text('Lưu ý:', style: TextStyle(fontWeight: FontWeight.bold)),
               SizedBox(height: 8),
               Text('• Mỗi mã QR chỉ được sử dụng một lần'),
               Text('• Kiểm tra thông tin hành khách trước khi xác nhận'),

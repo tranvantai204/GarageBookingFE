@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import '../providers/trip_provider.dart';
+import '../providers/booking_provider.dart';
 import '../widgets/trip_card.dart';
 import '../models/trip.dart';
-import '../constants/api_constants.dart';
 import 'create_trip_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:intl/intl.dart';
 
 class TripListScreen extends StatefulWidget {
   final bool showAppBar;
@@ -22,6 +21,11 @@ class _TripListScreenState extends State<TripListScreen> {
   String _userRole = 'user';
   String _userName = '';
   String _userId = '';
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+  DateTime? _fromDate;
+  DateTime? _toDate;
+  bool _onlyAvailableSeats = false;
 
   @override
   void initState() {
@@ -31,6 +35,7 @@ class _TripListScreenState extends State<TripListScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         Provider.of<TripProvider>(context, listen: false).loadTrips();
+        Provider.of<BookingProvider>(context, listen: false).loadBookings();
       }
     });
   }
@@ -52,41 +57,7 @@ class _TripListScreenState extends State<TripListScreen> {
     // await _refreshUserRole(); // Tạm tắt vì API /auth/me không tồn tại
   }
 
-  Future<void> _refreshUserRole() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('token');
-
-      if (token == null) return;
-
-      final url = Uri.parse('${ApiConstants.baseUrl}/auth/me');
-      final response = await http.get(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
-
-      if (response.statusCode == 200) {
-        final jsonResponse = jsonDecode(response.body);
-        final serverRole = jsonResponse['vaiTro'] ?? 'user';
-
-        // Cập nhật lại SharedPreferences nếu khác
-        if (serverRole != _userRole) {
-          await prefs.setString('vaiTro', serverRole);
-          setState(() {
-            _userRole = serverRole;
-          });
-        }
-      } else if (response.statusCode == 401) {
-        // Token hết hạn, đăng xuất
-        _logout();
-      }
-    } catch (e) {
-      // Lỗi khi refresh user role, tiếp tục sử dụng role đã lưu
-    }
-  }
+  // _refreshUserRole() tắt do API /auth/me chưa khả dụng
 
   Future<void> _logout() async {
     try {
@@ -121,19 +92,68 @@ class _TripListScreenState extends State<TripListScreen> {
     }
   }
 
-  List<dynamic> _getFilteredTrips(List<dynamic> allTrips) {
-    // Nếu là driver/tài xế, chỉ hiển thị chuyến được giao
+  List<Trip> _getFilteredTrips(
+    List<Trip> allTrips,
+    BookingProvider bookingProvider,
+  ) {
+    // Base by role
+    List<Trip> result;
     if (_userRole == 'driver' || _userRole == 'tai_xe') {
-      return allTrips.where((trip) {
-        // Filter theo tên tài xế hoặc ID tài xế
+      result = allTrips.where((trip) {
         return trip.taiXe == _userName ||
             trip.taiXeId == _userId ||
-            trip.taiXe?.toLowerCase().contains(_userName.toLowerCase()) == true;
+            (trip.taiXe.toLowerCase().contains(_userName.toLowerCase()) ==
+                true);
+      }).toList();
+    } else {
+      result = List.of(allTrips);
+    }
+
+    // Text search
+    if (_searchQuery.isNotEmpty) {
+      final q = _searchQuery.toLowerCase();
+      result = result.where((t) {
+        return t.diemDi.toLowerCase().contains(q) ||
+            t.diemDen.toLowerCase().contains(q) ||
+            t.bienSoXe.toLowerCase().contains(q) ||
+            (t.taiXe.toLowerCase().contains(q) == true);
       }).toList();
     }
 
-    // Admin và user thấy tất cả chuyến
-    return allTrips;
+    // Date range filter (inclusive)
+    if (_fromDate != null || _toDate != null) {
+      final fromDate = _fromDate != null
+          ? DateTime(_fromDate!.year, _fromDate!.month, _fromDate!.day, 0, 0, 0)
+          : DateTime(2000);
+      final toDate = _toDate != null
+          ? DateTime(
+              _toDate!.year,
+              _toDate!.month,
+              _toDate!.day,
+              23,
+              59,
+              59,
+              999,
+            )
+          : DateTime(2100);
+      result = result.where((t) {
+        final dt = t.thoiGianKhoiHanh;
+        return !dt.isBefore(fromDate) && !dt.isAfter(toDate);
+      }).toList();
+    }
+
+    // Only trips with available seats
+    if (_onlyAvailableSeats) {
+      result = result.where((t) {
+        final booked = bookingProvider.bookings
+            .where((b) => b.tripId == t.id)
+            .expand((b) => b.danhSachGhe)
+            .length;
+        return (t.soGhe - booked) > 0;
+      }).toList();
+    }
+
+    return result;
   }
 
   String _getEmptyMessage() {
@@ -160,17 +180,21 @@ class _TripListScreenState extends State<TripListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final content = RefreshIndicator(
+    final listContent = RefreshIndicator(
       onRefresh: () async {
         await Provider.of<TripProvider>(context, listen: false).loadTrips();
+        await Provider.of<BookingProvider>(
+          context,
+          listen: false,
+        ).loadBookings();
       },
-      child: Consumer<TripProvider>(
-        builder: (context, tripProvider, child) {
+      child: Consumer2<TripProvider, BookingProvider>(
+        builder: (context, tripProvider, bookingProvider, child) {
           if (tripProvider.isLoading) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
-                children: [
+                children: const [
                   CircularProgressIndicator(),
                   SizedBox(height: 16),
                   Text('Đang tải danh sách chuyến đi...'),
@@ -179,7 +203,10 @@ class _TripListScreenState extends State<TripListScreen> {
             );
           }
 
-          final filteredTrips = _getFilteredTrips(tripProvider.trips);
+          final filteredTrips = _getFilteredTrips(
+            tripProvider.trips,
+            bookingProvider,
+          );
 
           if (filteredTrips.isEmpty) {
             return Center(
@@ -191,7 +218,7 @@ class _TripListScreenState extends State<TripListScreen> {
                     size: 80,
                     color: Colors.grey[400],
                   ),
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
                   Text(
                     'Không có chuyến đi nào',
                     style: TextStyle(
@@ -200,20 +227,19 @@ class _TripListScreenState extends State<TripListScreen> {
                       color: Colors.grey[600],
                     ),
                   ),
-                  SizedBox(height: 8),
+                  const SizedBox(height: 8),
                   Text(
                     _getEmptyMessage(),
                     style: TextStyle(fontSize: 14, color: Colors.grey[500]),
                   ),
-                  SizedBox(height: 20),
-                  // Chỉ admin mới thấy nút tạo chuyến đi
+                  const SizedBox(height: 20),
                   if (_userRole == 'admin')
                     ElevatedButton.icon(
                       onPressed: () async {
                         final result = await Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => CreateTripScreen(),
+                            builder: (context) => const CreateTripScreen(),
                           ),
                         );
                         if (result == true && mounted) {
@@ -223,8 +249,8 @@ class _TripListScreenState extends State<TripListScreen> {
                           ).loadTrips();
                         }
                       },
-                      icon: Icon(Icons.add_box),
-                      label: Text('Tạo chuyến đi'),
+                      icon: const Icon(Icons.add_box),
+                      label: const Text('Tạo chuyến đi'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blue,
                         foregroundColor: Colors.white,
@@ -235,7 +261,7 @@ class _TripListScreenState extends State<TripListScreen> {
             );
           }
           return ListView.builder(
-            padding: EdgeInsets.symmetric(vertical: 8),
+            padding: const EdgeInsets.symmetric(vertical: 8),
             itemCount: filteredTrips.length,
             itemBuilder: (context, index) {
               final trip = filteredTrips[index];
@@ -245,12 +271,22 @@ class _TripListScreenState extends State<TripListScreen> {
                 onTap: () {
                   Navigator.pushNamed(context, '/trip_detail', arguments: trip);
                 },
-                onDelete: _userRole == 'admin' ? () => _deleteTrip(trip) : null,
+                onDelete: _userRole == 'admin'
+                    ? () => _confirmDeleteTrip(trip)
+                    : null,
               );
             },
           );
         },
       ),
+    );
+
+    final content = Column(
+      children: [
+        _buildSearchBar(),
+        _buildFilterBar(),
+        Expanded(child: listContent),
+      ],
     );
 
     if (widget.showAppBar) {
@@ -377,17 +413,154 @@ class _TripListScreenState extends State<TripListScreen> {
     return content;
   }
 
-  Future<void> _deleteTrip(Trip trip) async {
-    try {
-      // Hiển thị loading
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(child: CircularProgressIndicator()),
-      );
+  Widget _buildSearchBar() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      color: Colors.white,
+      child: TextField(
+        controller: _searchController,
+        onChanged: (v) => setState(() => _searchQuery = v.trim()),
+        decoration: InputDecoration(
+          hintText: 'Tìm tuyến đường, biển số, tài xế...',
+          prefixIcon: const Icon(Icons.search),
+          suffixIcon: _searchQuery.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.clear),
+                  onPressed: () {
+                    _searchController.clear();
+                    setState(() => _searchQuery = '');
+                  },
+                )
+              : null,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 10,
+          ),
+        ),
+      ),
+    );
+  }
 
-      final tripProvider = Provider.of<TripProvider>(context, listen: false);
-      final success = await tripProvider.deleteTrip(trip.id);
+  Future<void> _pickDateRange() async {
+    final initial = (_fromDate != null && _toDate != null)
+        ? DateTimeRange(start: _fromDate!, end: _toDate!)
+        : null;
+    final now = DateTime.now();
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 1),
+      initialDateRange: initial,
+      helpText: 'Chọn khoảng ngày khởi hành',
+      locale: const Locale('vi'),
+    );
+    if (picked != null) {
+      setState(() {
+        _fromDate = picked.start;
+        _toDate = picked.end;
+      });
+    }
+  }
+
+  Widget _buildFilterBar() {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            InputChip(
+              avatar: const Icon(Icons.date_range, size: 16),
+              label: Text(
+                (_fromDate == null || _toDate == null)
+                    ? 'Khoảng ngày'
+                    : '${DateFormat('dd/MM').format(_fromDate!)} - ${DateFormat('dd/MM').format(_toDate!)}',
+              ),
+              onPressed: _pickDateRange,
+              onDeleted: (_fromDate != null || _toDate != null)
+                  ? () => setState(() {
+                      _fromDate = null;
+                      _toDate = null;
+                    })
+                  : null,
+            ),
+            const SizedBox(width: 8),
+            FilterChip(
+              label: const Text('Chỉ còn chỗ'),
+              selected: _onlyAvailableSeats,
+              onSelected: (v) => setState(() => _onlyAvailableSeats = v),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmDeleteTrip(Trip trip) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Xác nhận xóa'),
+        content: Text(
+          'Bạn có chắc chắn muốn xóa chuyến đi từ ${trip.diemDi} đến ${trip.diemDen}?\n\nHành động này không thể hoàn tác.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Xóa'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _deleteTrip(trip);
+    }
+  }
+
+  Future<void> _deleteTrip(Trip trip) async {
+    final tripProvider = Provider.of<TripProvider>(context, listen: false);
+
+    try {
+      // Lấy token từ SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token') ?? '';
+
+      if (token.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại!',
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Hiển thị loading
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) =>
+              const Center(child: CircularProgressIndicator()),
+        );
+      }
+
+      final success = await tripProvider.deleteTrip(trip.id, token);
 
       // Đóng loading dialog
       if (mounted) {

@@ -7,6 +7,8 @@ import '../widgets/logo_widget.dart';
 import '../widgets/simple_background.dart';
 import 'test_accounts_screen.dart';
 import 'register_screen.dart';
+import '../services/push_notification_service.dart';
+import '../utils/session_manager.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -67,6 +69,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (response.statusCode == 200) {
         final jsonResponse = jsonDecode(response.body);
         await _saveUserData(jsonResponse);
+        await SessionManager.saveToken(jsonResponse['token'] ?? '');
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -75,20 +78,42 @@ class _LoginScreenState extends State<LoginScreen> {
               backgroundColor: Colors.green,
             ),
           );
+          await PushNotificationService.syncFcmTokenWithServer();
           Navigator.pushReplacementNamed(context, '/trips');
         }
+      } else if (response.statusCode == 401 || response.statusCode == 400) {
+        // Sai thông tin đăng nhập - không thử server khác
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Sai số điện thoại hoặc mật khẩu'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return; // Dừng ở đây, không thử server khác
       } else {
-        throw Exception('Sai thông tin đăng nhập');
+        // Lỗi server khác (500, 503, etc.) - thử server khác
+        throw Exception('Lỗi server: ${response.statusCode}');
       }
     } catch (e) {
       print('❌ Lỗi: $e');
 
-      // Thử server khác trước khi dùng demo
+      // Thử server khác
       bool serverConnected = await _tryAlternativeServers();
 
       if (!serverConnected) {
-        // Demo Mode - chỉ khi không có server nào hoạt động
-        await _tryDemoLogin();
+        // Không có server nào hoạt động - hiển thị lỗi
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Không thể kết nối đến server. Vui lòng thử lại sau.',
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     }
 
@@ -96,71 +121,6 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() {
         _isLoading = false;
       });
-    }
-  }
-
-  Future<void> _tryDemoLogin() async {
-    final demoAccounts = {
-      '0123456789': {
-        'password': '123456',
-        'name': 'Admin Demo',
-        'role': 'admin',
-      },
-      '0987654321': {'password': '123456', 'name': 'User Demo', 'role': 'user'},
-      '0111222333': {
-        'password': '123456',
-        'name': 'Driver Demo',
-        'role': 'driver',
-      },
-    };
-
-    final phone = _phoneController.text.trim();
-    final password = _passwordController.text.trim();
-
-    if (demoAccounts.containsKey(phone) &&
-        demoAccounts[phone]!['password'] == password) {
-      final account = demoAccounts[phone]!;
-
-      await _saveUserData({
-        '_id': 'demo_$phone',
-        'hoTen': account['name'],
-        'vaiTro': account['role'],
-        'token': 'demo_token_${DateTime.now().millisecondsSinceEpoch}',
-      });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Demo Mode: ${account['name']} (${account['role']})'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-        Navigator.pushReplacementNamed(context, '/trips');
-      }
-    } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('Lỗi kết nối server'),
-                SizedBox(height: 4),
-                Text(
-                  'Demo: 0123456789/123456 (Admin)',
-                  style: TextStyle(fontSize: 12),
-                ),
-                Text(
-                  'Demo: 0987654321/123456 (User)',
-                  style: TextStyle(fontSize: 12),
-                ),
-              ],
-            ),
-            backgroundColor: Colors.red,
-            duration: Duration(seconds: 5),
-          ),
-        );
-      }
     }
   }
 
@@ -200,6 +160,7 @@ class _LoginScreenState extends State<LoginScreen> {
           print('🆔 User ID: ${jsonResponse['_id']}');
 
           await _saveUserData(jsonResponse);
+          await SessionManager.saveToken(jsonResponse['token'] ?? '');
 
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -210,9 +171,22 @@ class _LoginScreenState extends State<LoginScreen> {
                 backgroundColor: Colors.green,
               ),
             );
+            await PushNotificationService.syncFcmTokenWithServer();
             Navigator.pushReplacementNamed(context, '/trips');
           }
           return true;
+        } else if (response.statusCode == 401 || response.statusCode == 400) {
+          // Server hoạt động nhưng sai thông tin đăng nhập
+          print('❌ Sai thông tin đăng nhập trên server: $url');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Sai số điện thoại hoặc mật khẩu'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+          return true; // Server hoạt động, chỉ là sai thông tin
         }
       } catch (e) {
         print('❌ Server $url failed: $e');
@@ -449,101 +423,10 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 24),
 
               // Simple demo info card
-              SimpleCard(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.info_outline, color: Colors.orange.shade600),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Tài khoản Demo',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.orange.shade700,
-                            fontSize: 16,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    _buildDemoAccount(
-                      'Admin',
-                      '0123456789',
-                      '123456',
-                      Icons.admin_panel_settings,
-                    ),
-                    const SizedBox(height: 8),
-                    _buildDemoAccount(
-                      'User',
-                      '0987654321',
-                      '123456',
-                      Icons.person,
-                    ),
-                    const SizedBox(height: 8),
-                    _buildDemoAccount(
-                      'Driver',
-                      '0111222333',
-                      '123456',
-                      Icons.drive_eta,
-                    ),
-                  ],
-                ),
-              ),
-
               const SizedBox(height: 40),
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildDemoAccount(
-    String role,
-    String phone,
-    String password,
-    IconData icon,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.5),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.grey.shade300),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: Colors.blue.shade600, size: 20),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  role,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                ),
-                Text(
-                  '$phone / $password',
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            onPressed: () {
-              _phoneController.text = phone;
-              _passwordController.text = password;
-            },
-            icon: Icon(Icons.copy, color: Colors.blue.shade600, size: 18),
-            tooltip: 'Sao chép thông tin',
-          ),
-        ],
       ),
     );
   }

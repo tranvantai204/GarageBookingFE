@@ -10,6 +10,7 @@ class User {
   final DateTime createdAt;
   final DateTime updatedAt;
   final bool isActive;
+  final bool isVip;
 
   User({
     required this.id,
@@ -23,6 +24,7 @@ class User {
     required this.createdAt,
     required this.updatedAt,
     this.isActive = true,
+    this.isVip = false,
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
@@ -42,6 +44,7 @@ class User {
           ? DateTime.parse(json['updatedAt'])
           : DateTime.now(),
       isActive: json['isActive'] ?? true,
+      isVip: json['isVip'] ?? false,
     );
   }
 
@@ -58,6 +61,7 @@ class User {
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
       'isActive': isActive,
+      'isVip': isVip,
     };
   }
 

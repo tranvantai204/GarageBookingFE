@@ -5,6 +5,11 @@ import '../providers/trip_provider.dart';
 import '../providers/booking_provider.dart';
 import '../models/trip.dart';
 import 'qr_scanner_screen.dart';
+import '../providers/socket_provider.dart';
+import 'dart:async';
+import 'package:geolocator/geolocator.dart';
+import 'driver_start_trip_screen.dart';
+import 'driver_completed_trips_screen.dart';
 
 class DriverTripsScreen extends StatefulWidget {
   const DriverTripsScreen({super.key});
@@ -17,6 +22,7 @@ class _DriverTripsScreenState extends State<DriverTripsScreen> {
   String _driverName = '';
   String _driverId = '';
   String _selectedFilter = 'all'; // 'all', 'today', 'upcoming', 'completed'
+  StreamSubscription<Position>? _posSub;
 
   @override
   void initState() {
@@ -25,7 +31,50 @@ class _DriverTripsScreenState extends State<DriverTripsScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<TripProvider>(context, listen: false).loadTrips();
       Provider.of<BookingProvider>(context, listen: false).loadBookings();
+      _startLocationStream();
     });
+  }
+
+  @override
+  void dispose() {
+    _posSub?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _startLocationStream() async {
+    final hasPermission = await _ensureLocationPermission();
+    if (!hasPermission) return;
+    _posSub =
+        Geolocator.getPositionStream(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            distanceFilter: 20,
+          ),
+        ).listen((pos) {
+          final socketProvider = Provider.of<SocketProvider>(
+            context,
+            listen: false,
+          );
+          if (socketProvider.isConnected) {
+            socketProvider.emit('driver_location', {
+              'userId': _driverId,
+              'lat': pos.latitude,
+              'lng': pos.longitude,
+            });
+          }
+        });
+  }
+
+  Future<bool> _ensureLocationPermission() async {
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) return false;
+    }
+    if (permission == LocationPermission.deniedForever) {
+      return false;
+    }
+    return true;
   }
 
   Future<void> _loadDriverInfo() async {
@@ -44,6 +93,16 @@ class _DriverTripsScreenState extends State<DriverTripsScreen> {
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
         actions: [
+          IconButton(
+            tooltip: 'Lịch sử chuyến',
+            icon: const Icon(Icons.history),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const DriverCompletedTripsScreen(),
+              ),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.qr_code_scanner),
             onPressed: () => Navigator.push(
@@ -153,11 +212,58 @@ class _DriverTripsScreenState extends State<DriverTripsScreen> {
               final tripBookings = bookingProvider.bookings
                   .where((booking) => booking.tripId == trip.id)
                   .toList();
-              return _buildTripCard(trip, tripBookings);
+              return Column(
+                children: [
+                  _buildTripCard(trip, tripBookings),
+                  _buildDriverActions(trip),
+                ],
+              );
             },
           ),
         );
       },
+    );
+  }
+
+  Widget _buildDriverActions(Trip trip) {
+    final now = DateTime.now();
+    final start = trip.thoiGianKhoiHanh;
+    final within30Min =
+        start.isAfter(now) &&
+        start.difference(now) <= const Duration(minutes: 30);
+    return Padding(
+      padding: const EdgeInsets.only(top: 8.0),
+      child: Row(
+        children: [
+          Expanded(
+            child: OutlinedButton.icon(
+              icon: const Icon(Icons.remove_red_eye),
+              label: const Text('Chuẩn bị chuyến'),
+              onPressed: () => _openDriverStart(trip),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.play_arrow),
+              label: const Text('Bắt đầu chuyến'),
+              onPressed: within30Min ? () => _openDriverStart(trip) : null,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openDriverStart(Trip trip) async {
+    if (!mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => DriverStartTripScreen(trip: trip)),
     );
   }
 
@@ -171,7 +277,7 @@ class _DriverTripsScreenState extends State<DriverTripsScreen> {
       case 'today':
         final today = DateTime.now();
         return myTrips.where((trip) {
-          final tripDate = DateTime.parse(trip.gioKhoiHanh);
+          final tripDate = trip.thoiGianKhoiHanh;
           return tripDate.day == today.day &&
               tripDate.month == today.month &&
               tripDate.year == today.year;
@@ -180,7 +286,7 @@ class _DriverTripsScreenState extends State<DriverTripsScreen> {
       case 'upcoming':
         final now = DateTime.now();
         return myTrips.where((trip) {
-          final tripDate = DateTime.parse(trip.gioKhoiHanh);
+          final tripDate = trip.thoiGianKhoiHanh;
           return tripDate.isAfter(now);
         }).toList();
 
@@ -210,7 +316,7 @@ class _DriverTripsScreenState extends State<DriverTripsScreen> {
   }
 
   Widget _buildTripCard(Trip trip, List<dynamic> bookings) {
-    final tripDate = DateTime.parse(trip.gioKhoiHanh);
+    final tripDate = trip.thoiGianKhoiHanh;
     final now = DateTime.now();
     final isUpcoming = tripDate.isAfter(now);
     final isToday =
@@ -261,7 +367,7 @@ class _DriverTripsScreenState extends State<DriverTripsScreen> {
                           ),
                         ),
                         Text(
-                          '${_formatDate(tripDate)} • ${_formatTime(trip.gioKhoiHanh)}',
+                          '${_formatDate(tripDate)} • ${_safeTime(trip)}',
                           style: const TextStyle(color: Colors.grey),
                         ),
                       ],
@@ -304,6 +410,14 @@ class _DriverTripsScreenState extends State<DriverTripsScreen> {
                 const SizedBox(height: 12),
                 Row(
                   children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _openMakeBookingDialog(trip),
+                        icon: const Icon(Icons.add_shopping_cart, size: 18),
+                        label: const Text('Đặt hộ'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: ElevatedButton.icon(
                         onPressed: () => _navigateToQRScanner(),
@@ -419,8 +533,20 @@ class _DriverTripsScreenState extends State<DriverTripsScreen> {
   }
 
   String _formatTime(String dateTimeString) {
-    final dateTime = DateTime.parse(dateTimeString);
-    return '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+    try {
+      final dateTime = DateTime.parse(dateTimeString);
+      return '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+    } catch (_) {
+      return dateTimeString;
+    }
+  }
+
+  String _safeTime(Trip trip) {
+    // Ưu tiên hiển thị từ thoiGianKhoiHanh nếu có
+    final dt = trip.thoiGianKhoiHanh;
+    final hh = dt.hour.toString().padLeft(2, '0');
+    final mm = dt.minute.toString().padLeft(2, '0');
+    return '$hh:$mm';
   }
 
   String _formatCurrency(int amount) {
@@ -452,7 +578,7 @@ class _DriverTripsScreenState extends State<DriverTripsScreen> {
                 'Loại xe:',
                 _getVehicleTypeName(trip.loaiXe ?? 'ghe_ngoi'),
               ),
-              _buildDetailRow('Biển số:', trip.bienSoXe ?? 'Chưa có'),
+              _buildDetailRow('Biển số:', trip.bienSoXe),
               _buildDetailRow('Số ghế:', '${trip.tongSoGhe}'),
               _buildDetailRow('Đã đặt:', '${trip.tongSoGhe - trip.soGheTrong}'),
               _buildDetailRow('Còn trống:', '${trip.soGheTrong}'),
@@ -465,7 +591,7 @@ class _DriverTripsScreenState extends State<DriverTripsScreen> {
             onPressed: () => Navigator.pop(context),
             child: const Text('Đóng'),
           ),
-          if (DateTime.parse(trip.gioKhoiHanh).day == DateTime.now().day)
+          if (trip.thoiGianKhoiHanh.day == DateTime.now().day)
             ElevatedButton(
               onPressed: () {
                 Navigator.pop(context);
@@ -497,57 +623,193 @@ class _DriverTripsScreenState extends State<DriverTripsScreen> {
     );
   }
 
-  void _showPassengerList(Trip trip, List<dynamic> bookings) {
-    showDialog(
+  void _showPassengerList(Trip trip, List<dynamic> _) async {
+    final resp = await Provider.of<BookingProvider>(
+      context,
+      listen: false,
+    ).fetchTripPassengers(trip.id);
+    if (resp['success'] != true) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(resp['message'] ?? 'Không tải được danh sách')),
+      );
+      return;
+    }
+    final data = Map<String, dynamic>.from(resp['data'] ?? {});
+    final bookings = List<Map<String, dynamic>>.from(data['bookings'] ?? []);
+
+    if (!mounted) return;
+    showModalBottomSheet(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Danh sách hành khách'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: bookings.isEmpty
-              ? const Text('Chưa có hành khách đặt vé')
-              : ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: bookings.length,
-                  itemBuilder: (context, index) {
-                    final booking = bookings[index];
-                    return ListTile(
-                      leading: CircleAvatar(child: Text('${index + 1}')),
-                      title: Text(booking.hoTen ?? 'Khách hàng'),
-                      subtitle: Text(booking.soDienThoai ?? ''),
-                      trailing: Container(
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.85,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        builder: (context, controller) {
+          return StatefulBuilder(
+            builder: (context, setModalState) {
+              int unpaidSeats = 0;
+              int paidSeats = 0;
+              for (final b in bookings) {
+                final count = (b['danhSachGhe'] as List<dynamic>?)?.length ?? 0;
+                if (b['trangThaiThanhToan'] == 'da_thanh_toan') {
+                  paidSeats += count;
+                } else {
+                  unpaidSeats += count;
+                }
+              }
+              return Column(
+                children: [
+                  const SizedBox(height: 12),
+                  Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Hành khách • ${trip.diemDi} → ${trip.diemDen}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 8,
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: booking.trangThai == 'da_xac_nhan'
-                              ? Colors.green.shade100
-                              : Colors.orange.shade100,
+                          color: Colors.red.shade50,
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
-                          booking.trangThai == 'da_xac_nhan'
-                              ? 'Đã xác nhận'
-                              : 'Chờ xác nhận',
+                          'Chưa thanh toán: ' + unpaidSeats.toString() + ' ghế',
                           style: TextStyle(
-                            color: booking.trangThai == 'da_xac_nhan'
-                                ? Colors.green.shade700
-                                : Colors.orange.shade700,
+                            color: Colors.red.shade700,
                             fontSize: 12,
                           ),
                         ),
                       ),
-                    );
-                  },
-                ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Đóng'),
-          ),
-        ],
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.green.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          'Đã thanh toán: ' + paidSeats.toString() + ' ghế',
+                          style: TextStyle(
+                            color: Colors.green.shade700,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: ListView.builder(
+                      controller: controller,
+                      itemCount: bookings.length,
+                      itemBuilder: (context, index) {
+                        final b = bookings[index];
+                        final seats = (b['danhSachGhe'] as List<dynamic>).join(
+                          ', ',
+                        );
+                        final paid = b['trangThaiThanhToan'] == 'da_thanh_toan';
+                        final checkedIn =
+                            b['trangThaiCheckIn'] == 'da_check_in';
+                        return ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: checkedIn
+                                ? Colors.green.shade100
+                                : Colors.orange.shade100,
+                            child: Icon(
+                              checkedIn ? Icons.check : Icons.access_time,
+                              color: checkedIn ? Colors.green : Colors.orange,
+                            ),
+                          ),
+                          title: Text(
+                            'Vé ' + (b['maVe'] ?? '') + ' • Ghế: ' + seats,
+                          ),
+                          subtitle: Text(
+                            'Khách: ' + (b['userId']?['hoTen'] ?? ''),
+                          ),
+                          trailing: SizedBox(
+                            width: 150,
+                            child: paid
+                                ? Center(
+                                    child: Text(
+                                      'Đã thanh toán',
+                                      style: TextStyle(
+                                        color: Colors.green.shade700,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  )
+                                : OutlinedButton(
+                                    onPressed: () async {
+                                      final resp =
+                                          await Provider.of<BookingProvider>(
+                                            context,
+                                            listen: false,
+                                          ).payBooking(
+                                            bookingId:
+                                                b['_id']?.toString() ?? '',
+                                            method: 'cash',
+                                          );
+                                      if (resp['success'] == true) {
+                                        setModalState(() {
+                                          b['trangThaiThanhToan'] =
+                                              'da_thanh_toan';
+                                        });
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'Xác nhận tiền mặt thành công',
+                                            ),
+                                          ),
+                                        );
+                                      } else {
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              resp['message'] ?? 'Lỗi xác nhận',
+                                            ),
+                                          ),
+                                        );
+                                      }
+                                    },
+                                    child: const Text('Xác nhận tiền mặt'),
+                                  ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              );
+            },
+          );
+        },
       ),
     );
   }
@@ -555,7 +817,115 @@ class _DriverTripsScreenState extends State<DriverTripsScreen> {
   void _navigateToQRScanner() {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const QRScannerScreen()),
+      MaterialPageRoute(builder: (context) => QRScannerScreen(tripId: '')),
+    );
+  }
+
+  Future<void> _openMakeBookingDialog(Trip trip) async {
+    final seats = trip.danhSachGhe.map((s) => s.tenGhe).toList();
+    final selected = <String>{};
+    final phoneCtrl = TextEditingController();
+    final pickupCtrl = TextEditingController();
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Đặt vé hộ khách'),
+        content: StatefulBuilder(
+          builder: (ctx, setS) => SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Chọn ghế trống:'),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: seats.map((g) {
+                    final isTaken =
+                        (trip.tongSoGhe - trip.soGheTrong) >=
+                            trip
+                                .tongSoGhe // fallback only
+                        ? false
+                        : false; // real taken seats đã có trong DS hành khách, ở đây đơn giản cho UX
+                    final isSel = selected.contains(g);
+                    return FilterChip(
+                      label: Text(g),
+                      selected: isSel,
+                      onSelected: isTaken
+                          ? null
+                          : (v) => setS(
+                              () => v ? selected.add(g) : selected.remove(g),
+                            ),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: phoneCtrl,
+                  keyboardType: TextInputType.phone,
+                  decoration: const InputDecoration(
+                    labelText: 'Số điện thoại khách',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: pickupCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Điểm đón (tuỳ chọn)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Huỷ'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (selected.isEmpty || phoneCtrl.text.trim().isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Chọn ghế và nhập SĐT')),
+                );
+                return;
+              }
+              Navigator.pop(ctx);
+              final body = {
+                'tripId': trip.id,
+                'danhSachGheDat': selected.toList(),
+                'forPhone': phoneCtrl.text.trim(),
+                if (pickupCtrl.text.trim().isNotEmpty)
+                  'diaChiDon': pickupCtrl.text.trim(),
+              };
+              final res = await Provider.of<BookingProvider>(
+                context,
+                listen: false,
+              ).createBooking(body);
+              if (!mounted) return;
+              if (res['success'] == true) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Đặt vé thành công')),
+                );
+                await Provider.of<BookingProvider>(
+                  context,
+                  listen: false,
+                ).loadBookings();
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(res['message'] ?? 'Đặt thất bại')),
+                );
+              }
+            },
+            child: const Text('Tạo vé'),
+          ),
+        ],
+      ),
     );
   }
 }

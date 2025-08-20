@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "917961748203",
+    "project_id": "garagebooking-71428",
+    "storage_bucket": "garagebooking-71428.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:917961748203:android:b401737e9f42b71ddd18ae",
+        "android_client_info": {
+          "package_name": "com.example.ha_phuong_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCSw2NWiyWHmi1TkA0IhsK7WOfiysRw6q4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

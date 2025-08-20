@@ -437,6 +437,20 @@ app.post('/api/chat/room', (req, res) => {
   }
 });
 
+app.delete('/api/chat/messages/:messageId', (req, res) => {
+  try {
+    const messageId = req.params.messageId;
+    const msgIndex = chatMessages.findIndex(msg => msg._id === messageId);
+    if (msgIndex === -1) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy tin nhắn' });
+    }
+    chatMessages.splice(msgIndex, 1);
+    res.json({ success: true, message: 'Thu hồi tin nhắn thành công' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Lỗi khi thu hồi tin nhắn', error: error.message });
+  }
+});
+
 // Error handling
 app.use((err, req, res, next) => {
   console.error(err.stack);

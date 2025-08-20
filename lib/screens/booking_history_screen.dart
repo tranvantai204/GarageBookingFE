@@ -4,6 +4,12 @@ import 'package:provider/provider.dart';
 import '../providers/booking_provider.dart';
 import '../widgets/booking_card.dart';
 import '../widgets/qr_ticket_widget.dart';
+import '../services/push_notification_service.dart';
+import '../constants/api_constants.dart';
+import 'booking_payment_screen.dart';
+import '../api/feedback_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../api/refund_service.dart';
 
 class BookingHistoryScreen extends StatefulWidget {
   final bool showAppBar;
@@ -25,49 +31,264 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
   }
 
   void _showBookingDetail(BuildContext context, booking) {
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Chi tiết vé ${booking.maVe}'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildDetailRow('Mã vé:', booking.maVe),
-              _buildDetailRow('Ghế:', booking.danhSachGhe.join(', ')),
-              _buildDetailRow('Số lượng:', '${booking.danhSachGhe.length} ghế'),
-              _buildDetailRow(
-                'Tổng tiền:',
-                '${_formatCurrency(booking.tongTien)}đ',
-              ),
-              _buildDetailRow(
-                'Trạng thái:',
-                _getStatusText(booking.trangThaiThanhToan),
-              ),
-              if (booking.diemDi != null)
-                _buildDetailRow('Điểm đi:', booking.diemDi!),
-              if (booking.diemDen != null)
-                _buildDetailRow('Điểm đến:', booking.diemDen!),
-              if (booking.thoiGianKhoiHanh != null)
-                _buildDetailRow(
-                  'Khởi hành:',
-                  '${booking.thoiGianKhoiHanh!.day}/${booking.thoiGianKhoiHanh!.month}/${booking.thoiGianKhoiHanh!.year} ${booking.thoiGianKhoiHanh!.hour.toString().padLeft(2, '0')}:${booking.thoiGianKhoiHanh!.minute.toString().padLeft(2, '0')}',
-                ),
-              _buildDetailRow(
-                'Đặt lúc:',
-                '${booking.createdAt.day}/${booking.createdAt.month}/${booking.createdAt.year} ${booking.createdAt.hour.toString().padLeft(2, '0')}:${booking.createdAt.minute.toString().padLeft(2, '0')}',
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Đóng'),
-          ),
-        ],
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
+      builder: (ctx) {
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.8,
+          minChildSize: 0.5,
+          maxChildSize: 0.95,
+          builder: (_, controller) {
+            return SingleChildScrollView(
+              controller: controller,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 48,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Chi tiết vé ${booking.maVe}',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildDetailRow('Mã vé:', booking.maVe),
+                    _buildDetailRow('Ghế:', booking.danhSachGhe.join(', ')),
+                    _buildDetailRow(
+                      'Số lượng:',
+                      '${booking.danhSachGhe.length} ghế',
+                    ),
+                    _buildDetailRow(
+                      'Tổng tiền:',
+                      '${_formatCurrency(booking.tongTien)}đ',
+                    ),
+                    _buildDetailRow(
+                      'Thanh toán:',
+                      _getStatusText(booking.trangThaiThanhToan),
+                    ),
+                    if (booking.diemDi != null)
+                      _buildDetailRow('Điểm đi:', booking.diemDi!),
+                    if (booking.diemDen != null)
+                      _buildDetailRow('Điểm đến:', booking.diemDen!),
+                    if (booking.thoiGianKhoiHanh != null)
+                      _buildDetailRow(
+                        'Khởi hành:',
+                        '${booking.thoiGianKhoiHanh!.day}/${booking.thoiGianKhoiHanh!.month}/${booking.thoiGianKhoiHanh!.year} ${booking.thoiGianKhoiHanh!.hour.toString().padLeft(2, '0')}:${booking.thoiGianKhoiHanh!.minute.toString().padLeft(2, '0')}',
+                      ),
+                    _buildDetailRow(
+                      'Đặt lúc:',
+                      '${booking.createdAt.day}/${booking.createdAt.month}/${booking.createdAt.year} ${booking.createdAt.hour.toString().padLeft(2, '0')}:${booking.createdAt.minute.toString().padLeft(2, '0')}',
+                    ),
+                    const SizedBox(height: 12),
+                    const Divider(),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Thông tin xe/tài xế',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    if (booking.bienSoXe != null)
+                      _buildDetailRow('Biển số:', booking.bienSoXe!),
+                    if (booking.loaiXe != null)
+                      _buildDetailRow('Loại xe:', booking.loaiXe!),
+                    if (booking.taiXe != null)
+                      _buildDetailRow('Tài xế:', booking.taiXe!),
+                    const SizedBox(height: 8),
+                    if (booking.vehicleImages.isNotEmpty)
+                      SizedBox(
+                        height: 90,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: booking.vehicleImages.length,
+                          separatorBuilder: (_, __) => const SizedBox(width: 8),
+                          itemBuilder: (_, i) => ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.network(
+                              _img(booking.vehicleImages[i]),
+                              width: 140,
+                              height: 90,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                width: 140,
+                                height: 90,
+                                color: Colors.grey.shade300,
+                                child: const Icon(Icons.broken_image),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 16),
+                    const Divider(),
+                    const SizedBox(height: 12),
+                    // Đánh giá tài xế (chỉ khi chuyến đã qua)
+                    if (booking.thoiGianKhoiHanh != null &&
+                        booking.thoiGianKhoiHanh!.isBefore(DateTime.now()))
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: OutlinedButton.icon(
+                          onPressed: () =>
+                              _showRateDriverDialog(context, booking),
+                          icon: const Icon(Icons.star_rate),
+                          label: const Text('Đánh giá tài xế'),
+                        ),
+                      ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'QR Check-in',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    QRTicketWidget(booking: booking),
+                    const SizedBox(height: 24),
+                    // Chỉ hiển thị trạng thái và nút mở trang thanh toán
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: FutureBuilder<String>(
+                            future: SharedPreferences.getInstance().then(
+                              (p) => p.getString('vaiTro') ?? 'user',
+                            ),
+                            builder: (context, snapshot) {
+                              final role = snapshot.data ?? 'user';
+                              final isPrivileged =
+                                  role == 'admin' ||
+                                  role == 'driver' ||
+                                  role == 'tai_xe';
+                              return OutlinedButton.icon(
+                                onPressed:
+                                    !isPrivileged ||
+                                        booking.trangThaiThanhToan ==
+                                            'da_thanh_toan'
+                                    ? null
+                                    : () async {
+                                        final resp =
+                                            await Provider.of<BookingProvider>(
+                                              context,
+                                              listen: false,
+                                            ).payBooking(
+                                              bookingId: booking.id,
+                                              method: 'cash',
+                                            );
+                                        if (mounted) {
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                resp['success'] == true
+                                                    ? 'Đã ghi nhận thanh toán tiền mặt'
+                                                    : (resp['message'] ??
+                                                          'Thanh toán thất bại'),
+                                              ),
+                                            ),
+                                          );
+                                        }
+                                      },
+                                icon: const Icon(Icons.attach_money),
+                                label: const Text('Thanh toán tiền mặt'),
+                              );
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () async {
+                              Navigator.pop(ctx);
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      BookingPaymentScreen(booking: booking),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.account_balance),
+                            label: const Text('Mở trang thanh toán'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue,
+                              foregroundColor: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    if (booking.trangThaiThanhToan == 'da_thanh_toan')
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            final resp = await RefundService.create(
+                              bookingId: booking.id,
+                              amount: booking.tongTien,
+                              reason: 'Hoàn tiền vé ${booking.maVe}',
+                              method: 'wallet',
+                            );
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  resp['success'] == true
+                                      ? 'Đã gửi yêu cầu hoàn tiền. Trạng thái: pending'
+                                      : (resp['message'] ??
+                                            'Gửi yêu cầu thất bại'),
+                                ),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.undo, color: Colors.teal),
+                          label: const Text(
+                            'Yêu cầu hoàn tiền',
+                            style: TextStyle(color: Colors.teal),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Colors.teal),
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 8),
+                    if (booking.trangThaiThanhToan == 'da_thanh_toan')
+                      Text(
+                        'ĐÃ THANH TOÁN',
+                        style: TextStyle(
+                          color: Colors.green.shade700,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -105,6 +326,101 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
     return amount.toString().replaceAllMapped(
       RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
       (Match m) => '${m[1]},',
+    );
+  }
+
+  Future<void> _showRateDriverDialog(BuildContext context, booking) async {
+    int rating = 5;
+    final controller = TextEditingController();
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Đánh giá tài xế'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(5, (i) {
+                final idx = i + 1;
+                return IconButton(
+                  icon: Icon(
+                    idx <= rating ? Icons.star : Icons.star_border,
+                    color: Colors.amber,
+                  ),
+                  onPressed: () {
+                    rating = idx;
+                    (ctx as Element).markNeedsBuild();
+                  },
+                );
+              }),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: controller,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                labelText: 'Nhận xét (tuỳ chọn)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Huỷ'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final resp = await FeedbackService.create(
+                bookingId: booking.id,
+                tripId: booking.tripId,
+                driverId: booking.taiXeId ?? '',
+                ratingDriver: rating,
+                comment: controller.text.trim(),
+              );
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    resp['success'] == true
+                        ? 'Đã gửi đánh giá'
+                        : (resp['message'] ?? 'Gửi thất bại'),
+                  ),
+                ),
+              );
+            },
+            child: const Text('Gửi'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _img(String url) {
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    return ApiConstants.baseUrl + url;
+  }
+
+  Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      child: Row(
+        children: [
+          const Icon(Icons.label, color: Colors.blue, size: 16),
+          const SizedBox(width: 6),
+          Text(
+            title,
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+              color: Colors.blue,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -179,7 +495,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
     print('🚀 Starting cancel booking for: ${booking.id}');
 
     // Hiển thị loading với timeout tự động
-    final loadingDialog = showDialog(
+    showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
@@ -347,6 +663,38 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
             ),
           );
         }
+        // Phân loại: đã qua hạn, sắp tới, đã mua (đã thanh toán)
+        final now = DateTime.now();
+        final expired = bookingProvider.bookings
+            .where(
+              (b) =>
+                  (b.thoiGianKhoiHanh != null &&
+                  b.thoiGianKhoiHanh!.isBefore(now)),
+            )
+            .toList();
+        final upcoming = bookingProvider.bookings
+            .where(
+              (b) =>
+                  (b.thoiGianKhoiHanh != null &&
+                  b.thoiGianKhoiHanh!.isAfter(now)),
+            )
+            .toList();
+        final paid = bookingProvider.bookings
+            .where((b) => b.trangThaiThanhToan == 'da_thanh_toan')
+            .toList();
+
+        // Schedule reminders for upcoming within next 24h (once per build)
+        for (final b in upcoming) {
+          if (b.thoiGianKhoiHanh != null) {
+            PushNotificationService.scheduleUpcomingTripReminder(
+              bookingId: b.id,
+              diemDi: b.diemDi ?? 'Điểm đi',
+              diemDen: b.diemDen ?? 'Điểm đến',
+              departureTime: b.thoiGianKhoiHanh!,
+            );
+          }
+        }
+
         return RefreshIndicator(
           onRefresh: () async {
             await Provider.of<BookingProvider>(
@@ -354,24 +702,46 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
               listen: false,
             ).loadBookings();
           },
-          child: ListView.builder(
+          child: ListView(
             padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: bookingProvider.bookings.length,
-            itemBuilder: (context, index) {
-              final booking = bookingProvider.bookings[index];
-              return BookingCard(
-                booking: booking,
-                onTap: () {
-                  _showBookingDetail(context, booking);
-                },
-                onCancel: () {
-                  _showCancelConfirmation(context, booking);
-                },
-                onShowQR: () {
-                  _showQRTicket(context, booking);
-                },
-              );
-            },
+            children: [
+              if (upcoming.isNotEmpty) ...[
+                _buildSectionTitle('Vé sắp tới'),
+                ...upcoming.map(
+                  (booking) => BookingCard(
+                    booking: booking,
+                    onTap: () => _showBookingDetail(context, booking),
+                    onCancel: () => _showCancelConfirmation(context, booking),
+                    onShowQR: () => _showQRTicket(context, booking),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+              if (paid.isNotEmpty) ...[
+                _buildSectionTitle('Vé đã mua'),
+                ...paid.map(
+                  (booking) => BookingCard(
+                    booking: booking,
+                    onTap: () => _showBookingDetail(context, booking),
+                    onCancel: () => _showCancelConfirmation(context, booking),
+                    onShowQR: () => _showQRTicket(context, booking),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+              if (expired.isNotEmpty) ...[
+                _buildSectionTitle('Vé đã qua hạn'),
+                ...expired.map(
+                  (booking) => BookingCard(
+                    booking: booking,
+                    onTap: () => _showBookingDetail(context, booking),
+                    onCancel: () => _showCancelConfirmation(context, booking),
+                    onShowQR: () => _showQRTicket(context, booking),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+            ],
           ),
         );
       },

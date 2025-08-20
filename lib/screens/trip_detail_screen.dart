@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../models/trip.dart';
 import 'package:provider/provider.dart';
 import '../providers/booking_provider.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import '../widgets/seat_selection_widget.dart';
 import '../widgets/pickup_location_widget.dart';
 import '../widgets/customer_info_widget.dart';
@@ -17,6 +16,8 @@ class TripDetailScreen extends StatefulWidget {
 class _TripDetailScreenState extends State<TripDetailScreen> {
   List<String> selectedSeats = [];
   bool isLoading = false;
+  final TextEditingController _voucherController = TextEditingController();
+  int _discount = 0;
 
   // Thông tin điểm đón
   String pickupType = 'ben_xe';
@@ -33,6 +34,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
     _nameController.dispose();
     _phoneController.dispose();
     _emailController.dispose();
+    _voucherController.dispose();
     super.dispose();
   }
 
@@ -174,6 +176,70 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
               ),
               const SizedBox(height: 20),
 
+              // Voucher & tính tiền
+              Card(
+                elevation: 2,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Mã giảm giá',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _voucherController,
+                              decoration: const InputDecoration(
+                                hintText: 'Nhập voucher (nếu có)',
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton(
+                            onPressed: () async {
+                              final code = _voucherController.text.trim();
+                              if (code.isEmpty) return;
+                              final amount = trip.giaVe * selectedSeats.length;
+                              try {
+                                final discount =
+                                    await Provider.of<BookingProvider>(
+                                      context,
+                                      listen: false,
+                                    ).validateVoucher(code, amount);
+                                setState(() => _discount = discount);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Áp dụng voucher thành công'),
+                                  ),
+                                );
+                              } catch (e) {
+                                setState(() => _discount = 0);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Voucher không hợp lệ: $e'),
+                                  ),
+                                );
+                              }
+                            },
+                            child: const Text('Áp dụng'),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      _buildPriceSummary(trip, selectedSeats.length),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
               // Widget thông tin khách hàng
               CustomerInfoWidget(
                 nameController: _nameController,
@@ -241,6 +307,11 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                                   _emailController.text.trim().isNotEmpty
                                   ? _emailController.text.trim()
                                   : null,
+                              voucherCode:
+                                  _voucherController.text.trim().isNotEmpty
+                                  ? _voucherController.text.trim()
+                                  : null,
+                              discountAmount: _discount > 0 ? _discount : null,
                             );
                         setState(() => isLoading = false);
 
@@ -284,6 +355,55 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildPriceSummary(Trip trip, int seatCount) {
+    final total = trip.giaVe * seatCount;
+    final finalAmount = (total - _discount).clamp(0, total);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('Tạm tính'),
+            Text('${_formatCurrency(total)}đ'),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('Giảm giá'),
+            Text(
+              '-${_formatCurrency(_discount)}đ',
+              style: const TextStyle(color: Colors.green),
+            ),
+          ],
+        ),
+        const Divider(height: 16),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Thanh toán',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            Text(
+              '${_formatCurrency(finalAmount)}đ',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  String _formatCurrency(int amount) {
+    return amount.toString().replaceAllMapped(
+      RegExp(r'(?<!\d)(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (Match m) => '${m[1]},',
     );
   }
 

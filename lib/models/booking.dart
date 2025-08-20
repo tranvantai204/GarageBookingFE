@@ -20,6 +20,11 @@ class Booking {
   final String? diemDi;
   final String? diemDen;
   final DateTime? thoiGianKhoiHanh;
+  final String? taiXe;
+  final String? taiXeId;
+  final String? bienSoXe;
+  final String? loaiXe;
+  final List<String> vehicleImages;
 
   Booking({
     required this.id,
@@ -41,6 +46,11 @@ class Booking {
     this.diemDi,
     this.diemDen,
     this.thoiGianKhoiHanh,
+    this.taiXe,
+    this.taiXeId,
+    this.bienSoXe,
+    this.loaiXe,
+    this.vehicleImages = const [],
   });
 
   // Getter để tương thích với code cũ
@@ -80,6 +90,19 @@ class Booking {
           json['tripId'] is Map && json['tripId']['thoiGianKhoiHanh'] != null
           ? DateTime.parse(json['tripId']['thoiGianKhoiHanh'])
           : null,
+      taiXe: json['tripId'] is Map ? json['tripId']['taiXe'] : null,
+      taiXeId: json['tripId'] is Map ? json['tripId']['taiXeId'] : null,
+      bienSoXe: json['tripId'] is Map ? json['tripId']['bienSoXe'] : null,
+      loaiXe: json['tripId'] is Map ? json['tripId']['loaiXe'] : null,
+      vehicleImages:
+          json['vehicleSnapshot'] is Map &&
+              json['vehicleSnapshot']['hinhAnh'] is List
+          ? List<String>.from(json['vehicleSnapshot']['hinhAnh'])
+          : (json['tripId'] is Map &&
+                    json['tripId']['vehicleInfo'] is Map &&
+                    json['tripId']['vehicleInfo']['hinhAnh'] is List
+                ? List<String>.from(json['tripId']['vehicleInfo']['hinhAnh'])
+                : const []),
     );
   }
 }

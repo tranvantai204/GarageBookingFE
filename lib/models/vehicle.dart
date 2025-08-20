@@ -12,6 +12,10 @@ class Vehicle {
   final DateTime createdAt;
   final DateTime updatedAt;
   final bool isActive;
+  final String? tenXe;
+  final String? hangXe;
+  final String? moTa;
+  final List<String> hinhAnh;
 
   Vehicle({
     required this.id,
@@ -27,6 +31,10 @@ class Vehicle {
     required this.createdAt,
     required this.updatedAt,
     this.isActive = true,
+    this.tenXe,
+    this.hangXe,
+    this.moTa,
+    this.hinhAnh = const [],
   });
 
   factory Vehicle.fromJson(Map<String, dynamic> json) {
@@ -38,20 +46,26 @@ class Vehicle {
       taiXeId: json['taiXeId'],
       tenTaiXe: json['tenTaiXe'],
       trangThai: json['trangThai'] ?? 'hoat_dong',
-      ngayBaoTriCuoi: json['ngayBaoTriCuoi'] != null 
-          ? DateTime.parse(json['ngayBaoTriCuoi']) 
+      ngayBaoTriCuoi: json['ngayBaoTriCuoi'] != null
+          ? DateTime.parse(json['ngayBaoTriCuoi'])
           : null,
-      ngayBaoTriTiep: json['ngayBaoTriTiep'] != null 
-          ? DateTime.parse(json['ngayBaoTriTiep']) 
+      ngayBaoTriTiep: json['ngayBaoTriTiep'] != null
+          ? DateTime.parse(json['ngayBaoTriTiep'])
           : null,
       ghiChu: json['ghiChu'],
-      createdAt: json['createdAt'] != null 
-          ? DateTime.parse(json['createdAt']) 
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'])
           : DateTime.now(),
-      updatedAt: json['updatedAt'] != null 
-          ? DateTime.parse(json['updatedAt']) 
+      updatedAt: json['updatedAt'] != null
+          ? DateTime.parse(json['updatedAt'])
           : DateTime.now(),
       isActive: json['isActive'] ?? true,
+      tenXe: json['tenXe'],
+      hangXe: json['hangXe'],
+      moTa: json['moTa'],
+      hinhAnh:
+          (json['hinhAnh'] as List?)?.map((e) => e.toString()).toList() ??
+          const [],
     );
   }
 
@@ -70,6 +84,10 @@ class Vehicle {
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
       'isActive': isActive,
+      'tenXe': tenXe,
+      'hangXe': hangXe,
+      'moTa': moTa,
+      'hinhAnh': hinhAnh,
     };
   }
 
@@ -87,6 +105,10 @@ class Vehicle {
     DateTime? createdAt,
     DateTime? updatedAt,
     bool? isActive,
+    String? tenXe,
+    String? hangXe,
+    String? moTa,
+    List<String>? hinhAnh,
   }) {
     return Vehicle(
       id: id ?? this.id,
@@ -102,6 +124,10 @@ class Vehicle {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       isActive: isActive ?? this.isActive,
+      tenXe: tenXe ?? this.tenXe,
+      hangXe: hangXe ?? this.hangXe,
+      moTa: moTa ?? this.moTa,
+      hinhAnh: hinhAnh ?? this.hinhAnh,
     );
   }
 
@@ -126,6 +152,7 @@ class Vehicle {
       case 'bao_tri':
         return 'Bảo trì';
       case 'ngung_hoat_dong':
+      case 'ngung':
         return 'Ngừng hoạt động';
       default:
         return 'Không xác định';
@@ -133,7 +160,7 @@ class Vehicle {
   }
 
   bool get canOperate => trangThai == 'hoat_dong' && isActive;
-  
+
   bool get needMaintenance {
     if (ngayBaoTriTiep == null) return false;
     return DateTime.now().isAfter(ngayBaoTriTiep!);
