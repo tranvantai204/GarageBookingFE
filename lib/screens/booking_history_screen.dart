@@ -665,11 +665,12 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
         }
         // Phân loại: đã qua hạn, sắp tới, đã mua (đã thanh toán)
         final now = DateTime.now();
+        final cutoff = now.subtract(const Duration(hours: 1));
         final expired = bookingProvider.bookings
             .where(
               (b) =>
                   (b.thoiGianKhoiHanh != null &&
-                  b.thoiGianKhoiHanh!.isBefore(now)),
+                  b.thoiGianKhoiHanh!.isBefore(cutoff)),
             )
             .toList();
         final upcoming = bookingProvider.bookings
@@ -681,6 +682,11 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
             .toList();
         final paid = bookingProvider.bookings
             .where((b) => b.trangThaiThanhToan == 'da_thanh_toan')
+            .where(
+              (b) =>
+                  b.thoiGianKhoiHanh == null ||
+                  !b.thoiGianKhoiHanh!.isBefore(cutoff),
+            )
             .toList();
 
         // Schedule reminders for upcoming within next 24h (once per build)

@@ -1,13 +1,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/booking.dart';
 import '../providers/booking_provider.dart';
 import '../providers/user_provider.dart';
 import '../providers/chat_provider.dart';
 import 'chat_screen_with_online_call.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 class BookingPaymentScreen extends StatefulWidget {
   final Booking booking;
@@ -23,29 +23,14 @@ class _BookingPaymentScreenState extends State<BookingPaymentScreen> {
   Timer? _pollTimer;
   bool _checking = false;
   String? _qrUrl;
-  String? _payosUrl;
+  String? _bankAddInfo;
 
   @override
   void initState() {
     super.initState();
     _current = widget.booking;
     _loadQr();
-    _loadPayosLink();
     _startAutoRefresh();
-  }
-
-  Future<void> _loadPayosLink() async {
-    try {
-      final resp = await Provider.of<BookingProvider>(
-        context,
-        listen: false,
-      ).createPayosLink(type: 'booking', bookingId: _current.id);
-      if (resp['success'] == true) {
-        setState(
-          () => _payosUrl = (resp['data']?['checkoutUrl'] ?? '') as String,
-        );
-      }
-    } catch (_) {}
   }
 
   @override
@@ -70,7 +55,10 @@ class _BookingPaymentScreenState extends State<BookingPaymentScreen> {
         bookingId: _current.id,
       );
       if (resp['success'] == true) {
-        setState(() => _qrUrl = (resp['data']?['qrImageUrl'] ?? '') as String);
+        setState(() {
+          _qrUrl = (resp['data']?['qrImageUrl'] ?? '') as String;
+          _bankAddInfo = resp['data']?['addInfo'] as String?;
+        });
       }
     } catch (_) {}
   }
@@ -87,6 +75,23 @@ class _BookingPaymentScreenState extends State<BookingPaymentScreen> {
       );
       if (!mounted) return;
       setState(() => _current = updated);
+      if (_current.trangThaiThanhToan == 'da_thanh_toan') {
+        _pollTimer?.cancel();
+        await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Thanh toán thành công'),
+            content: const Text('Hệ thống đã xác nhận chuyển khoản.'),
+            actions: [
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+        if (mounted) Navigator.pop(context, true);
+      }
     } finally {
       _checking = false;
     }
@@ -208,31 +213,48 @@ class _BookingPaymentScreenState extends State<BookingPaymentScreen> {
             const SizedBox(height: 16),
             if (!paid) ...[
               const Text(
-                'Quét QR để thanh toán (ưu tiên PayOS/Casso)',
+                'Quét QR ngân hàng để thanh toán',
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               Center(
-                child: _payosUrl != null
-                    ? Image(
-                        image: NetworkImage(
-                          // Render QR của chính checkoutUrl (PayOS sẽ xử lý khi mở link)
-                          // Nếu muốn QR ảnh thật từ PayOS, cần API khác; tạm thời dùng URL -> người dùng mở link thay vì scan ảnh
-                          'https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=' +
-                              Uri.encodeComponent(_payosUrl!),
-                        ),
-                        height: 240,
-                        fit: BoxFit.contain,
-                      )
-                    : (_qrUrl == null
-                          ? const SizedBox(height: 240)
-                          : Image.network(
-                              _qrUrl!,
-                              height: 240,
-                              fit: BoxFit.contain,
-                            )),
+                child: _qrUrl != null
+                    ? Image.network(_qrUrl!, height: 240, fit: BoxFit.contain)
+                    : const SizedBox(height: 240),
               ),
               const SizedBox(height: 12),
+              if (_bankAddInfo != null) ...[
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.info_outline,
+                      size: 18,
+                      color: Colors.blue,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Nội dung chuyển khoản: ${_bankAddInfo!}',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.copy, size: 18),
+                      onPressed: () async {
+                        await Clipboard.setData(
+                          ClipboardData(text: _bankAddInfo!),
+                        );
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Đã sao chép nội dung chuyển khoản'),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ],
               Align(
                 alignment: Alignment.centerLeft,
                 child: ElevatedButton.icon(
@@ -242,36 +264,44 @@ class _BookingPaymentScreenState extends State<BookingPaymentScreen> {
                 ),
               ),
               const SizedBox(height: 8),
+              const SizedBox(height: 8),
               Align(
                 alignment: Alignment.centerLeft,
                 child: OutlinedButton.icon(
                   onPressed: () async {
-                    final resp = await Provider.of<BookingProvider>(
-                      context,
-                      listen: false,
-                    ).createPayosLink(type: 'booking', bookingId: _current.id);
-                    final url = resp['data']?['checkoutUrl'] as String?;
-                    if (url != null && mounted) {
+                    final confirmed = await showDialog<bool>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: const Text('Tôi đã chuyển khoản'),
+                        content: Text(
+                          'Vui lòng chuyển khoản theo đúng nội dung:\n${_bankAddInfo ?? ''}\nSau đó nhấn Xác nhận để hệ thống tự kiểm tra (không xác nhận thủ công).',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx, false),
+                            child: const Text('Đóng'),
+                          ),
+                          ElevatedButton(
+                            onPressed: () => Navigator.pop(ctx, true),
+                            child: const Text('Xác nhận'),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (confirmed == true) {
+                      if (!mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Đang mở PayOS...')),
-                      );
-                      final uri = Uri.parse(url);
-                      await launchUrl(
-                        uri,
-                        mode: LaunchMode.externalApplication,
-                      );
-                    } else if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
+                        const SnackBar(
                           content: Text(
-                            resp['message'] ?? 'Tạo link PayOS thất bại',
+                            'Đã ghi nhận. Hệ thống sẽ tự kiểm tra qua webhook.',
                           ),
                         ),
                       );
+                      _startAutoRefresh();
                     }
                   },
-                  icon: const Icon(Icons.open_in_new),
-                  label: const Text('Thanh toán qua PayOS (link)'),
+                  icon: const Icon(Icons.check_circle_outline),
+                  label: const Text('Tôi đã chuyển khoản'),
                 ),
               ),
               const SizedBox(height: 8),
@@ -295,21 +325,78 @@ class _BookingPaymentScreenState extends State<BookingPaymentScreen> {
                 alignment: Alignment.centerLeft,
                 child: ElevatedButton.icon(
                   onPressed: () async {
-                    final resp = await Provider.of<BookingProvider>(
-                      context,
-                      listen: false,
-                    ).payBooking(bookingId: _current.id, method: 'wallet');
-                    if (!mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          resp['success'] == true
-                              ? 'Thanh toán bằng ví thành công'
-                              : (resp['message'] ?? 'Thanh toán ví thất bại'),
+                    final prefs = await SharedPreferences.getInstance();
+                    final balance = prefs.getInt('viSoDu') ?? 0;
+                    final price = _current.tongTien;
+                    final remain = balance - price;
+
+                    final confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: const Text('Xác nhận thanh toán bằng ví'),
+                        content: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Số dư hiện có: ' +
+                                  _formatCurrency(balance) +
+                                  'đ',
+                            ),
+                            Text('Giá vé: ' + _formatCurrency(price) + 'đ'),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Số dư còn lại: ' + _formatCurrency(remain) + 'đ',
+                              style: TextStyle(
+                                color: remain >= 0 ? Colors.green : Colors.red,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            if (remain < 0)
+                              const Padding(
+                                padding: EdgeInsets.only(top: 6),
+                                child: Text(
+                                  'Số dư không đủ. Vui lòng nạp thêm hoặc chọn cách khác.',
+                                  style: TextStyle(color: Colors.red),
+                                ),
+                              ),
+                          ],
                         ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx, false),
+                            child: const Text('Hủy'),
+                          ),
+                          ElevatedButton(
+                            onPressed: remain >= 0
+                                ? () => Navigator.pop(ctx, true)
+                                : null,
+                            child: const Text('Xác nhận'),
+                          ),
+                        ],
                       ),
                     );
-                    await _refreshStatus();
+
+                    if (confirm == true) {
+                      final resp = await Provider.of<BookingProvider>(
+                        context,
+                        listen: false,
+                      ).payBooking(bookingId: _current.id, method: 'wallet');
+                      if (!mounted) return;
+                      if (resp['success'] == true) {
+                        await prefs.setInt('viSoDu', remain);
+                      }
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            resp['success'] == true
+                                ? 'Thanh toán bằng ví thành công'
+                                : (resp['message'] ?? 'Thanh toán ví thất bại'),
+                          ),
+                        ),
+                      );
+                      await _refreshStatus();
+                    }
                   },
                   icon: const Icon(Icons.account_balance_wallet),
                   label: const Text('Thanh toán bằng ví'),

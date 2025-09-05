@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../api/wallet_service.dart';
 import '../api/booking_service.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/services.dart';
 
 class WalletScreen extends StatefulWidget {
   const WalletScreen({super.key});
@@ -16,7 +16,7 @@ class _WalletScreenState extends State<WalletScreen> {
   List<dynamic> _txs = [];
   String _userId = '';
   String? _qrUrl;
-  String? _payosUrl;
+  String? _addInfo;
   final TextEditingController _amountCtrl = TextEditingController();
 
   @override
@@ -36,27 +36,17 @@ class _WalletScreenState extends State<WalletScreen> {
       _txs = data['transactions'] ?? [];
       await prefs.setInt('viSoDu', _balance);
     }
-    // Lấy QR nạp ví qua API mới (VietQR với addInfo=TOPUP-<userId>)
+    // Lấy QR nạp ví qua API (VietQR với addInfo=TOPUP-<userId>)
     try {
       if (_userId.isNotEmpty) {
-        // Ưu tiên PayOS; chỉ khi tạo link PayOS thất bại mới lấy VietQR dự phòng
-        final linkResp = await BookingService.createPayosLink(
+        final qrResp = await BookingService.createPaymentQr(
           type: 'topup',
           userId: _userId,
           amount: 0,
         );
-        if (linkResp['success'] == true) {
-          _payosUrl = (linkResp['data']?['checkoutUrl'] ?? '') as String?;
-        }
-        if (_payosUrl == null) {
-          final qrResp = await BookingService.createPaymentQr(
-            type: 'topup',
-            userId: _userId,
-            amount: 0,
-          );
-          if (qrResp['success'] == true) {
-            _qrUrl = (qrResp['data']?['qrImageUrl'] ?? '') as String?;
-          }
+        if (qrResp['success'] == true) {
+          _qrUrl = (qrResp['data']?['qrImageUrl'] ?? '') as String?;
+          _addInfo = qrResp['data']?['addInfo'] as String?;
         }
       }
     } catch (_) {}
@@ -98,7 +88,7 @@ class _WalletScreenState extends State<WalletScreen> {
                             ),
                           ),
                           const SizedBox(height: 12),
-                          const Text('Quét QR để nạp tiền'),
+                          const Text('Quét QR ngân hàng để nạp ví'),
                           const SizedBox(height: 8),
                           Row(
                             children: [
@@ -125,68 +115,72 @@ class _WalletScreenState extends State<WalletScreen> {
                                     );
                                     return;
                                   }
-                                  final linkResp =
-                                      await BookingService.createPayosLink(
+                                  final qrResp =
+                                      await BookingService.createPaymentQr(
                                         type: 'topup',
                                         userId: _userId,
                                         amount: amt,
                                       );
-                                  if (linkResp['success'] == true) {
-                                    setState(
-                                      () => _payosUrl =
-                                          (linkResp['data']?['checkoutUrl'] ??
-                                                  '')
-                                              as String?,
-                                    );
-                                  } else {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          linkResp['message'] ??
-                                              'Tạo link PayOS thất bại',
-                                        ),
-                                      ),
-                                    );
+                                  if (qrResp['success'] == true) {
+                                    setState(() {
+                                      _qrUrl =
+                                          (qrResp['data']?['qrImageUrl'] ?? '')
+                                              as String?;
+                                      _addInfo =
+                                          qrResp['data']?['addInfo'] as String?;
+                                    });
                                   }
                                 },
-                                child: const Text('Tạo QR PayOS'),
+                                child: const Text('Tạo QR nạp ví'),
                               ),
                             ],
                           ),
                           const SizedBox(height: 8),
                           Center(
-                            child: _payosUrl != null
-                                ? Image(
-                                    image: NetworkImage(
-                                      'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' +
-                                          Uri.encodeComponent(_payosUrl!),
-                                    ),
+                            child: _qrUrl == null
+                                ? const SizedBox(height: 220)
+                                : Image.network(
+                                    _qrUrl!,
                                     height: 220,
-                                  )
-                                : (_qrUrl == null
-                                      ? const SizedBox(height: 220)
-                                      : Image.network(
-                                          _qrUrl!,
-                                          height: 220,
-                                          errorBuilder: (_, __, ___) =>
-                                              const SizedBox.shrink(),
-                                        )),
+                                    errorBuilder: (_, __, ___) =>
+                                        const SizedBox.shrink(),
+                                  ),
                           ),
                           const SizedBox(height: 8),
-                          if (_payosUrl != null)
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: OutlinedButton.icon(
-                                onPressed: () async {
-                                  final uri = Uri.parse(_payosUrl!);
-                                  await launchUrl(
-                                    uri,
-                                    mode: LaunchMode.externalApplication,
-                                  );
-                                },
-                                icon: const Icon(Icons.open_in_new),
-                                label: const Text('Mở PayOS (link)'),
-                              ),
+                          if (_addInfo != null)
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.info_outline,
+                                  size: 18,
+                                  color: Colors.teal,
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    'Nội dung chuyển khoản: ${_addInfo!}',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.copy, size: 18),
+                                  onPressed: () async {
+                                    await Clipboard.setData(
+                                      ClipboardData(text: _addInfo!),
+                                    );
+                                    if (!mounted) return;
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Đã sao chép nội dung chuyển khoản',
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ],
                             ),
                           const SizedBox(height: 8),
                         ],

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'dart:async';
+import '../providers/socket_provider.dart';
 import '../providers/booking_provider.dart';
 import '../providers/trip_provider.dart';
 import '../providers/user_provider.dart';
@@ -31,13 +33,45 @@ class AdminDashboardScreen extends StatefulWidget {
 }
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
+  Timer? _autoTimer;
+  void _bindSocket() {
+    final socket = Provider.of<SocketProvider>(context, listen: false);
+    socket.off('trip_status_update');
+    socket.on('trip_status_update', (data) {
+      _loadData();
+      if (!mounted) return;
+      final status = data['status'];
+      final tripId = data['tripId'];
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Trạng thái chuyến $tripId: $status')),
+      );
+    });
+  }
+
   @override
   void initState() {
     super.initState();
     // Gọi sau khi build xong để tránh setState during build
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadData();
+      _bindSocket();
     });
+    // Tự động refresh mỗi 10s
+    _autoTimer?.cancel();
+    _autoTimer = Timer.periodic(
+      const Duration(seconds: 10),
+      (_) => _loadData(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _autoTimer?.cancel();
+    try {
+      final socket = Provider.of<SocketProvider>(context, listen: false);
+      socket.off('trip_status_update');
+    } catch (_) {}
+    super.dispose();
   }
 
   void _loadData() {

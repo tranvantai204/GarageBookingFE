@@ -164,33 +164,168 @@ class _VoucherManagementScreenState extends State<VoucherManagementScreen> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : ListView.separated(
-              padding: const EdgeInsets.all(12),
-              itemCount: _vouchers.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (context, index) {
-                final v = _vouchers[index];
-                return Card(
-                  child: ListTile(
-                    title: Text('${v['code']} • ${v['type']} ${v['value']}'),
-                    subtitle: Text('Từ ${v['startAt']} đến ${v['endAt']}'),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.red),
-                      onPressed: () async {
-                        await VoucherService.deleteVoucher(v['_id']);
-                        await _load();
+          : Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.card_giftcard, color: Colors.purple),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Danh sách voucher (${_vouchers.length})',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const Spacer(),
+                      OutlinedButton.icon(
+                        onPressed: _load,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Tải lại'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: GridView.builder(
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                            childAspectRatio: 1.2,
+                          ),
+                      itemCount: _vouchers.length,
+                      itemBuilder: (context, index) {
+                        final v = _vouchers[index];
+                        final active = v['active'] == true;
+                        final onlyVip = v['onlyVip'] == true;
+                        return InkWell(
+                          onTap: () async {
+                            final payload = await _showVoucherDialog(init: v);
+                            if (payload != null) {
+                              await VoucherService.updateVoucher(
+                                v['_id'],
+                                payload,
+                              );
+                              await _load();
+                            }
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Colors.grey.shade100),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.04),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 6),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: Colors.purple.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: const Icon(
+                                        Icons.discount,
+                                        color: Colors.purple,
+                                        size: 18,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        v['code'] ?? 'MÃ',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.delete_outline,
+                                        color: Colors.red,
+                                      ),
+                                      onPressed: () async {
+                                        await VoucherService.deleteVoucher(
+                                          v['_id'],
+                                        );
+                                        await _load();
+                                      },
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    Chip(
+                                      label: Text('${v['type']} ${v['value']}'),
+                                      backgroundColor: Colors.purple.shade50,
+                                      labelStyle: const TextStyle(
+                                        color: Colors.purple,
+                                      ),
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    if (onlyVip)
+                                      Chip(
+                                        label: const Text('VIP'),
+                                        backgroundColor: Colors.orange.shade50,
+                                        labelStyle: const TextStyle(
+                                          color: Colors.orange,
+                                        ),
+                                        visualDensity: VisualDensity.compact,
+                                      ),
+                                    const SizedBox(width: 6),
+                                    Chip(
+                                      label: Text(
+                                        active ? 'Đang hoạt động' : 'Tạm tắt',
+                                      ),
+                                      backgroundColor: active
+                                          ? Colors.green.shade50
+                                          : Colors.grey.shade200,
+                                      labelStyle: TextStyle(
+                                        color: active
+                                            ? Colors.green
+                                            : Colors.grey.shade700,
+                                      ),
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                  ],
+                                ),
+                                const Spacer(),
+                                Text(
+                                  'Hiệu lực: ${v['startAt']} → ${v['endAt']}',
+                                  style: TextStyle(
+                                    color: Colors.grey.shade700,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
                       },
                     ),
-                    onTap: () async {
-                      final payload = await _showVoucherDialog(init: v);
-                      if (payload != null) {
-                        await VoucherService.updateVoucher(v['_id'], payload);
-                        await _load();
-                      }
-                    },
                   ),
-                );
-              },
+                ],
+              ),
             ),
     );
   }

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
 import '../providers/booking_provider.dart';
+import '../services/api_service.dart';
 
 class QRScannerScreen extends StatefulWidget {
   final String? tripId; // để server có thể cho phép check-in sớm 30 phút
@@ -401,11 +402,20 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
   }
 
   Future<void> _processScannedCode(String code) async {
-    final resp = await Provider.of<BookingProvider>(
+    final bookingProvider = Provider.of<BookingProvider>(
       context,
       listen: false,
-    ).checkInByQr(code, tripId: widget.tripId);
+    );
+    final resp = await bookingProvider.checkInByQr(code, tripId: widget.tripId);
     final success = resp['success'] == true;
+
+    // Lấy trạng thái thanh toán + ghế ngồi (API giả định)
+    Map<String, dynamic>? ticket;
+    try {
+      final api = ApiService();
+      final r = await api.get('/bookings/by-code/$code');
+      if (r['success'] == true) ticket = r['data'] as Map<String, dynamic>;
+    } catch (_) {}
 
     showDialog(
       context: context,
@@ -425,6 +435,14 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Mã vé: $code'),
+            if (ticket != null) ...[
+              const SizedBox(height: 8),
+              Text('Khách: ${ticket['user']?['hoTen'] ?? ''}'),
+              Text(
+                'Ghế: ${(ticket['danhSachGhe'] as List?)?.join(', ') ?? '-'}',
+              ),
+              Text('Thanh toán: ${ticket['trangThaiThanhToan'] ?? '-'}'),
+            ],
             if (success) ...[
               const SizedBox(height: 8),
               Text(resp['message'] ?? ''),
@@ -442,7 +460,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
             onPressed: () => Navigator.pop(context),
             child: const Text('Đóng'),
           ),
-          if (success)
+          if (success) ...[
             ElevatedButton(
               onPressed: () {
                 Navigator.pop(context);
@@ -454,6 +472,32 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
               ),
               child: const Text('Xác nhận lên xe'),
             ),
+            const SizedBox(width: 8),
+            ElevatedButton(
+              onPressed: () async {
+                // Xác nhận thanh toán tiền mặt (API giả định)
+                try {
+                  final api = ApiService();
+                  await api.post(
+                    '/bookings/cash-confirm',
+                    body: {'code': code},
+                  );
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Đã xác nhận thanh toán tiền mặt'),
+                      ),
+                    );
+                  }
+                } catch (_) {}
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Thanh toán tiền mặt'),
+            ),
+          ],
         ],
       ),
     );

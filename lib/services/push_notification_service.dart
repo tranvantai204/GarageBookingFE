@@ -172,6 +172,22 @@ class PushNotificationService {
         if (!navigated) {
           await _showLocalNotification(message);
         }
+      } else if (type == 'driver_rate_request') {
+        await _showLocalNotification(message);
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
+          try {
+            final ctx = NavigationService.navigatorKey.currentContext;
+            if (ctx != null) {
+              final navigator = NavigationService.navigatorKey.currentState;
+              navigator?.pushNamed('/trips');
+              ScaffoldMessenger.of(ctx).showSnackBar(
+                const SnackBar(
+                  content: Text('Vui lòng đánh giá chuyến vừa hoàn thành'),
+                ),
+              );
+            }
+          } catch (_) {}
+        });
       } else {
         await _showLocalNotification(message);
       }
