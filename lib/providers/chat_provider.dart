@@ -369,6 +369,8 @@ class ChatProvider with ChangeNotifier {
     required String senderRole,
     required String message,
     String? tripId,
+    String messageType = 'text',
+    String? fileUrl,
   }) async {
     try {
       final newMessage = ChatMessage(
@@ -394,7 +396,11 @@ class ChatProvider with ChangeNotifier {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
-        body: jsonEncode({'content': message, 'messageType': 'text'}),
+        body: jsonEncode({
+          'content': message,
+          'messageType': messageType,
+          if (fileUrl != null) 'fileUrl': fileUrl,
+        }),
       );
 
       if (response.statusCode == 200) {

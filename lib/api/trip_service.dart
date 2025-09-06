@@ -50,6 +50,29 @@ class TripService {
     }
   }
 
+  // Lấy các chuyến theo tài xế (upcoming)
+  static Future<List<Trip>> fetchDriverUpcoming(String driverId) async {
+    try {
+      final uri = Uri.parse(
+        '${ApiConstants.baseUrl}/trips/driver/$driverId/upcoming',
+      );
+      final response = await http.get(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+      );
+      if (response.statusCode == 200) {
+        final jsonResponse = jsonDecode(response.body);
+        if (jsonResponse['success'] == true) {
+          final List data = jsonResponse['data'];
+          return data.map((e) => Trip.fromJson(e)).toList();
+        }
+      }
+      return [];
+    } catch (e) {
+      return [];
+    }
+  }
+
   // Tìm kiếm chuyến đi theo điều kiện
   static Future<List<Trip>> searchTrips({
     required String diemDi,

@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
 import '../providers/booking_provider.dart';
+import '../providers/chat_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
 
 class QRScannerScreen extends StatefulWidget {
@@ -456,6 +458,57 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
           ],
         ),
         actions: [
+          // Mở chat với khách nếu có thông tin user trong vé
+          if (ticket != null && ticket['user'] != null) ...[
+            TextButton.icon(
+              onPressed: () async {
+                try {
+                  final user = ticket!['user'] as Map<String, dynamic>;
+                  final targetUserId = (user['_id'] ?? '').toString();
+                  final targetUserName = (user['hoTen'] ?? 'Khách hàng')
+                      .toString();
+                  if (targetUserId.isEmpty) return;
+                  if (!mounted) return;
+                  // Tạo/mở phòng chat rồi điều hướng
+                  final chatProvider = Provider.of<ChatProvider>(
+                    context,
+                    listen: false,
+                  );
+                  // Lấy thông tin current user từ SharedPreferences
+                  final prefs = await SharedPreferences.getInstance();
+                  final myId = prefs.getString('userId') ?? '';
+                  final myName = prefs.getString('hoTen') ?? '';
+                  final myRole = prefs.getString('vaiTro') ?? 'driver';
+                  final roomId = await chatProvider.createOrGetChatRoom(
+                    currentUserId: myId,
+                    currentUserName: myName,
+                    currentUserRole: myRole,
+                    targetUserId: targetUserId,
+                    targetUserName: targetUserName,
+                    targetUserRole: 'user',
+                  );
+                  if (roomId != null) {
+                    if (!mounted) return;
+                    Navigator.pop(context);
+                    // Điều hướng sang chat có hỗ trợ gọi
+                    Navigator.pushNamed(
+                      context,
+                      '/chat',
+                      arguments: {
+                        'chatRoomId': roomId,
+                        'chatRoomName': targetUserName,
+                        'targetUserName': targetUserName,
+                        'targetUserRole': 'user',
+                        'targetUserId': targetUserId,
+                      },
+                    );
+                  }
+                } catch (_) {}
+              },
+              icon: const Icon(Icons.chat_bubble_outline),
+              label: const Text('Chat khách'),
+            ),
+          ],
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Đóng'),

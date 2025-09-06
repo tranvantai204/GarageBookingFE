@@ -69,12 +69,19 @@ class Trip {
 
   factory Trip.fromJson(Map<String, dynamic> json) {
     try {
+      DateTime _safeParseDate(dynamic v) {
+        if (v == null) return DateTime.now();
+        final s = v.toString();
+        final dt = DateTime.tryParse(s);
+        return (dt ?? DateTime.now()).toLocal();
+      }
+
       return Trip(
         id: json['_id'] ?? '',
         nhaXe: json['nhaXe'] ?? 'Hà Phương',
         diemDi: json['diemDi'] ?? '',
         diemDen: json['diemDen'] ?? '',
-        thoiGianKhoiHanh: DateTime.parse(json['thoiGianKhoiHanh']),
+        thoiGianKhoiHanh: _safeParseDate(json['thoiGianKhoiHanh']),
         soGhe: json['soGhe'] ?? 0,
         danhSachGhe:
             (json['danhSachGhe'] as List<dynamic>?)
@@ -82,14 +89,14 @@ class Trip {
                 .toList() ??
             [],
         taiXe: json['taiXe'] ?? 'Chưa cập nhật',
-        taiXeId: json['taiXeId'],
+        taiXeId: json['taiXeId']?.toString(),
         bienSoXe: json['bienSoXe'] ?? 'Chưa cập nhật',
         loaiXe: json['loaiXe'] ?? 'ghe_ngoi',
         gioKetThuc: json['gioKetThuc'] != null
-            ? DateTime.parse(json['gioKetThuc'])
+            ? _safeParseDate(json['gioKetThuc'])
             : null,
-        createdAt: DateTime.parse(json['createdAt']),
-        updatedAt: DateTime.parse(json['updatedAt']),
+        createdAt: _safeParseDate(json['createdAt']),
+        updatedAt: _safeParseDate(json['updatedAt']),
       );
     } catch (e) {
       print('❌ Error parsing Trip from JSON: $e');

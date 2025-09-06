@@ -29,6 +29,26 @@ class TripProvider with ChangeNotifier {
     notifyListeners(); // Chỉ notify một lần khi hoàn thành
   }
 
+  // Load trips dedicated for a driver (server filtered)
+  Future<void> loadDriverUpcoming(String driverId) async {
+    _isLoading = true;
+    try {
+      final list = await TripService.fetchDriverUpcoming(driverId);
+      // Fallback: if server returns empty (e.g., trips assigned by name only),
+      // load all trips so the screen can filter locally by driver name/id.
+      if (list.isEmpty) {
+        final all = await TripService.fetchAllTrips();
+        _trips = all;
+      } else {
+        _trips = list;
+      }
+    } catch (e) {
+      _trips = [];
+    }
+    _isLoading = false;
+    notifyListeners();
+  }
+
   Future<void> searchTrips({
     required String diemDi,
     required String diemDen,

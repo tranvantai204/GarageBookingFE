@@ -100,10 +100,13 @@ class _TripListScreenState extends State<TripListScreen> {
     List<Trip> result;
     if (_userRole == 'driver' || _userRole == 'tai_xe') {
       result = allTrips.where((trip) {
-        return trip.taiXe == _userName ||
-            trip.taiXeId == _userId ||
-            (trip.taiXe.toLowerCase().contains(_userName.toLowerCase()) ==
-                true);
+        final matchesName =
+            trip.taiXe.trim().toLowerCase() == _userName.trim().toLowerCase();
+        final matchesId = (trip.taiXeId?.toString() ?? '') == _userId;
+        final containsName = trip.taiXe.toLowerCase().contains(
+          _userName.toLowerCase(),
+        );
+        return matchesName || matchesId || containsName;
       }).toList();
     } else {
       result = List.of(allTrips);
@@ -153,6 +156,9 @@ class _TripListScreenState extends State<TripListScreen> {
       }).toList();
     }
 
+    // Always hide trips already departed (client-side guard)
+    final now = DateTime.now();
+    result = result.where((t) => t.thoiGianKhoiHanh.isAfter(now)).toList();
     return result;
   }
 

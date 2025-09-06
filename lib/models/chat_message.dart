@@ -9,6 +9,8 @@ class ChatMessage {
   final String senderName;
   final String senderRole;
   final String message;
+  final String? messageType;
+  final String? fileUrl;
   final DateTime timestamp;
   final MessageStatus status;
   final bool isRead;
@@ -23,6 +25,8 @@ class ChatMessage {
     required this.senderName,
     required this.senderRole,
     required this.message,
+    this.messageType,
+    this.fileUrl,
     required this.timestamp,
     this.status = MessageStatus.sent,
     this.isRead = false,
@@ -38,6 +42,8 @@ class ChatMessage {
     String? senderName,
     String? senderRole,
     String? message,
+    String? messageType,
+    String? fileUrl,
     DateTime? timestamp,
     MessageStatus? status,
     bool? isRead,
@@ -52,6 +58,8 @@ class ChatMessage {
       senderName: senderName ?? this.senderName,
       senderRole: senderRole ?? this.senderRole,
       message: message ?? this.message,
+      messageType: messageType ?? this.messageType,
+      fileUrl: fileUrl ?? this.fileUrl,
       timestamp: timestamp ?? this.timestamp,
       status: status ?? this.status,
       isRead: isRead ?? this.isRead,
@@ -69,6 +77,8 @@ class ChatMessage {
       senderName: json['senderName'] ?? '',
       senderRole: json['senderRole'] ?? '',
       message: json['message'] ?? json['content'] ?? '',
+      messageType: json['messageType'],
+      fileUrl: json['fileUrl'],
       timestamp:
           DateTime.tryParse(json['timestamp'] ?? json['createdAt'] ?? '') ??
           DateTime.now(),

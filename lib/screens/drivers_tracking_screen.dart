@@ -47,12 +47,39 @@ class _DriversTrackingScreenState extends State<DriversTrackingScreen> {
       _gController?.animateCamera(CameraUpdate.newLatLng(LatLng(lat, lng)));
       _osmController.move(ll.LatLng(lat, lng), 14);
     });
+    // Yêu cầu snapshot vị trí ngay khi mở màn
+    try {
+      socket.emit('request_driver_locations', {});
+      socket.off('driver_locations_snapshot');
+      socket.on('driver_locations_snapshot', (payload) {
+        try {
+          final items = (payload['items'] as List?) ?? [];
+          if (items.isEmpty) return;
+          setState(() {
+            for (final it in items) {
+              final userId = (it['userId'] ?? '').toString();
+              final lat = (it['lat'] as num?)?.toDouble();
+              final lng = (it['lng'] as num?)?.toDouble();
+              final ts = it['ts'] ?? DateTime.now().millisecondsSinceEpoch;
+              if (userId.isEmpty || lat == null || lng == null) continue;
+              _drivers[userId] = {'lat': lat, 'lng': lng, 'ts': ts};
+              final point = LatLng(lat, lng);
+              _tracks.putIfAbsent(userId, () => []);
+              _tracks[userId]!.add(point);
+              _tracksOsm.putIfAbsent(userId, () => []);
+              _tracksOsm[userId]!.add(ll.LatLng(lat, lng));
+            }
+          });
+        } catch (_) {}
+      });
+    } catch (_) {}
   }
 
   @override
   void dispose() {
     final socket = Provider.of<SocketProvider>(context, listen: false);
     socket.off('driver_location_update');
+    socket.off('driver_locations_snapshot');
     super.dispose();
   }
 

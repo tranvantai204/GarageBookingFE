@@ -4,6 +4,7 @@ import 'driver_profile_update_screen.dart';
 import 'admin_user_management_screen.dart';
 import '../utils/event_bus.dart';
 import 'wallet_screen.dart';
+import 'driver_apply_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final bool showAppBar;
@@ -27,6 +28,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     _loadUserInfo();
+    // Lắng nghe sự kiện ví thay đổi để cập nhật realtime ở màn tài khoản
+    EventBus().stream.listen((event) {
+      if (event == Events.walletUpdated) {
+        _loadUserInfo();
+      }
+    });
   }
 
   Future<void> _loadUserInfo() async {
@@ -169,6 +176,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   },
                 ),
                 Divider(height: 1),
+                if (_userRole == 'user') ...[
+                  ListTile(
+                    leading: Icon(Icons.drive_eta, color: Colors.teal),
+                    title: Text('Đăng ký làm tài xế'),
+                    trailing: Icon(Icons.arrow_forward_ios),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const DriverApplyScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  Divider(height: 1),
+                ],
                 SwitchListTile(
                   secondary: Icon(
                     Icons.chat_bubble_outline,

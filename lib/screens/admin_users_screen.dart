@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/user_provider.dart';
 import '../models/user.dart';
-import 'add_user_screen.dart';
-import 'edit_user_screen.dart';
+// Removed: only role change and delete actions remain
 
 class AdminUsersScreen extends StatefulWidget {
   const AdminUsersScreen({super.key});
@@ -64,15 +63,6 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
         backgroundColor: Colors.purple,
         foregroundColor: Colors.white,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const AddUserScreen()),
-              );
-            },
-          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () {
@@ -313,21 +303,35 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
 
               // Actions
               Row(
-                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  TextButton.icon(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => EditUserScreen(user: user),
+                  const Text('Vai trò:'),
+                  const SizedBox(width: 8),
+                  DropdownButton<String>(
+                    value: user.vaiTro,
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'user',
+                        child: Text('Khách hàng'),
+                      ),
+                      DropdownMenuItem(value: 'driver', child: Text('Tài xế')),
+                      DropdownMenuItem(value: 'admin', child: Text('Admin')),
+                    ],
+                    onChanged: (v) async {
+                      if (v == null) return;
+                      final ok = await context
+                          .read<UserProvider>()
+                          .changeUserRole(user.id, v);
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            ok ? 'Đã đổi vai trò' : 'Đổi vai trò thất bại',
+                          ),
                         ),
                       );
                     },
-                    icon: const Icon(Icons.edit, size: 16),
-                    label: const Text('Sửa'),
                   ),
-                  const SizedBox(width: 8),
+                  const Spacer(),
                   TextButton.icon(
                     onPressed: () => _showDeleteConfirmation(user),
                     icon: const Icon(Icons.delete, size: 16, color: Colors.red),

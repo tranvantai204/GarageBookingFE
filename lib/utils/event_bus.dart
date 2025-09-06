@@ -26,4 +26,5 @@ class Events {
   static const String notificationsUpdated = 'notifications_updated';
   static const String adminBroadcastReceived = 'admin_broadcast_received';
   static const String settingsChanged = 'settings_changed';
+  static const String walletUpdated = 'wallet_updated';
 }

@@ -24,6 +24,7 @@ import 'voucher_management_screen.dart';
 import 'admin_refunds_screen.dart';
 import 'admin_driver_feedbacks_screen.dart';
 import 'drivers_tracking_screen.dart';
+import 'admin_driver_applications_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -45,6 +46,23 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Trạng thái chuyến $tripId: $status')),
       );
+    });
+    // Listen live driver location updates for admin
+    socket.off('driver_location_update');
+    socket.on('driver_location_update', (data) {
+      if (!mounted) return;
+      try {
+        final userId = (data['userId'] ?? '').toString();
+        final lat = (data['lat'] as num?)?.toDouble();
+        final lng = (data['lng'] as num?)?.toDouble();
+        if (userId.isEmpty || lat == null || lng == null) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Vị trí tài xế $userId: $lat, $lng'),
+            duration: const Duration(milliseconds: 1500),
+          ),
+        );
+      } catch (_) {}
     });
   }
 
@@ -570,6 +588,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               Icons.analytics,
               Colors.green,
               () => _navigateToRevenueReport(),
+            ),
+            _buildManagementCard(
+              'Đơn ứng tuyển tài xế',
+              'Xét duyệt & trò chuyện',
+              Icons.person_add,
+              Colors.teal,
+              () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const AdminDriverApplicationsScreen(),
+                ),
+              ),
             ),
             _buildManagementCard(
               'Quản lý đội xe',

@@ -9,6 +9,10 @@ import 'test_accounts_screen.dart';
 import 'register_screen.dart';
 import '../services/push_notification_service.dart';
 import '../utils/session_manager.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:provider/provider.dart';
+import '../providers/socket_provider.dart';
+import 'forgot_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -78,7 +82,32 @@ class _LoginScreenState extends State<LoginScreen> {
               backgroundColor: Colors.green,
             ),
           );
+          // Ensure FCM token sync and topic subscription for this user
           await PushNotificationService.syncFcmTokenWithServer();
+          try {
+            final prefs = await SharedPreferences.getInstance();
+            final userId = prefs.getString('userId');
+            final token = prefs.getString('token') ?? '';
+            if (userId != null && userId.isNotEmpty) {
+              // Subscribe to user topic to receive calls/notifications even without re-login
+              await FirebaseMessaging.instance.subscribeToTopic(
+                'user_' + userId,
+              );
+              // Proactively connect socket and map user
+              try {
+                final sp = Provider.of<SocketProvider>(context, listen: false);
+                if (!sp.isConnected) {
+                  sp.connect(
+                    'https://garagebooking.onrender.com',
+                    token,
+                    userId,
+                  );
+                } else {
+                  sp.emit('join', userId);
+                }
+              } catch (_) {}
+            }
+          } catch (_) {}
           Navigator.pushReplacementNamed(context, '/trips');
         }
       } else if (response.statusCode == 401 || response.statusCode == 400) {
@@ -115,12 +144,12 @@ class _LoginScreenState extends State<LoginScreen> {
           );
         }
       }
-    }
-
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -172,6 +201,32 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             );
             await PushNotificationService.syncFcmTokenWithServer();
+            try {
+              final prefs = await SharedPreferences.getInstance();
+              final userId = prefs.getString('userId');
+              final token = prefs.getString('token') ?? '';
+              if (userId != null && userId.isNotEmpty) {
+                await FirebaseMessaging.instance.subscribeToTopic(
+                  'user_' + userId,
+                );
+                // Proactively connect socket and map user
+                try {
+                  final sp = Provider.of<SocketProvider>(
+                    context,
+                    listen: false,
+                  );
+                  if (!sp.isConnected) {
+                    sp.connect(
+                      'https://garagebooking.onrender.com',
+                      token,
+                      userId,
+                    );
+                  } else {
+                    sp.emit('join', userId);
+                  }
+                } catch (_) {}
+              }
+            } catch (_) {}
             Navigator.pushReplacementNamed(context, '/trips');
           }
           return true;
@@ -211,6 +266,12 @@ class _LoginScreenState extends State<LoginScreen> {
     await prefs.setString('userId', userData['_id'] ?? '');
     await prefs.setString('hoTen', userData['hoTen'] ?? '');
     await prefs.setString('vaiTro', role);
+    if (userData['soDienThoai'] != null) {
+      await prefs.setString('soDienThoai', userData['soDienThoai'] ?? '');
+    }
+    if (userData['email'] != null) {
+      await prefs.setString('email', userData['email'] ?? '');
+    }
 
     // Verify saved data
     final savedRole = prefs.getString('vaiTro');
@@ -412,6 +473,30 @@ class _LoginScreenState extends State<LoginScreen> {
                   ).createShader(bounds),
                   child: const Text(
                     'Chưa có tài khoản? Đăng ký ngay',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+
+              // Forgot password
+              TextButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const ForgotPasswordScreen(),
+                    ),
+                  );
+                },
+                child: ShaderMask(
+                  shaderCallback: (bounds) => LinearGradient(
+                    colors: [Colors.orange.shade600, Colors.pink.shade600],
+                  ).createShader(bounds),
+                  child: const Text(
+                    'Quên mật khẩu?',
                     style: TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.w600,

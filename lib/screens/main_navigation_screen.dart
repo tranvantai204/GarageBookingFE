@@ -16,6 +16,9 @@ import '../utils/session_manager.dart';
 import '../models/message_status.dart';
 import '../api/admin_service.dart';
 import '../utils/event_bus.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import '../constants/api_constants.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
@@ -44,12 +47,125 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     _bootstrapSocket();
     _listenIncomingCall();
     _loadNotificationCounts();
+    // Nhắc người dùng thêm email để khôi phục mật khẩu (có thể bỏ qua)
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybePromptAddEmail());
     EventBus().stream.listen((event) {
       if (event == Events.notificationsUpdated ||
           event == Events.adminBroadcastReceived) {
         _loadNotificationCounts();
       }
     });
+  }
+
+  Future<void> _maybePromptAddEmail() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final email = prefs.getString('email') ?? '';
+      final dismissed = prefs.getBool('dismissAddEmailPrompt') ?? false;
+      final role = prefs.getString('vaiTro') ?? 'user';
+      if (role == 'admin' || dismissed || email.isNotEmpty) return;
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        barrierDismissible: true,
+        builder: (ctx) {
+          return AlertDialog(
+            title: const Text('Thêm email để khôi phục mật khẩu'),
+            content: const Text(
+              'Bạn chưa thêm email. Việc thêm email giúp bạn lấy lại mật khẩu khi quên. Bạn có thể thêm ngay bây giờ hoặc để sau.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () async {
+                  final p = await SharedPreferences.getInstance();
+                  await p.setBool('dismissAddEmailPrompt', true);
+                  if (mounted) Navigator.pop(ctx);
+                },
+                child: const Text('Để sau'),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  if (mounted) Navigator.pop(ctx);
+                  await _promptAndSaveEmail();
+                },
+                child: const Text('Thêm email ngay'),
+              ),
+            ],
+          );
+        },
+      );
+    } catch (_) {}
+  }
+
+  Future<void> _promptAndSaveEmail() async {
+    final controller = TextEditingController();
+    if (!mounted) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Nhập email của bạn'),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.emailAddress,
+          decoration: const InputDecoration(
+            labelText: 'Email',
+            hintText: 'vd: tenban@example.com',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Lưu'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final email = controller.text.trim();
+    if (email.isEmpty || !email.contains('@')) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Email không hợp lệ')));
+      return;
+    }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token') ?? '';
+      final userId = prefs.getString('userId') ?? '';
+      if (token.isEmpty || userId.isEmpty) return;
+      final resp = await http.put(
+        Uri.parse('${ApiConstants.baseUrl}/auth/users/$userId'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({'email': email}),
+      );
+      if (resp.statusCode == 200) {
+        await prefs.setString('email', email);
+        await prefs.setBool('dismissAddEmailPrompt', true);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Đã lưu email vào tài khoản')),
+        );
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lưu email thất bại: ${resp.statusCode}')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Lỗi lưu email: $e')));
+    }
   }
 
   @override

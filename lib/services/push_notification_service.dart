@@ -188,6 +188,28 @@ class PushNotificationService {
             }
           } catch (_) {}
         });
+      } else if (type == 'driver_approved') {
+        await _showLocalNotification(message);
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
+          try {
+            final ctx = NavigationService.navigatorKey.currentContext;
+            if (ctx != null) {
+              showDialog(
+                context: ctx,
+                builder: (c) => AlertDialog(
+                  title: const Text('Chúc mừng!'),
+                  content: const Text('Bạn đã trở thành tài xế của nhà xe.'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(c),
+                      child: const Text('Đóng'),
+                    ),
+                  ],
+                ),
+              );
+            }
+          } catch (_) {}
+        });
       } else {
         await _showLocalNotification(message);
       }
@@ -195,6 +217,28 @@ class PushNotificationService {
       _storeToInbox(message);
       // Notify UI update
       EventBus().emit(Events.notificationsUpdated);
+      if (type == 'wallet_topup') {
+        // Cập nhật số dư ví realtime bằng cách gọi API ví và lưu vào prefs
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          final token = prefs.getString('token');
+          if (token != null) {
+            final resp = await http.get(
+              Uri.parse('${ApiConstants.baseUrl}/wallet/me'),
+              headers: {'Authorization': 'Bearer $token'},
+            );
+            if (resp.statusCode == 200) {
+              final data = jsonDecode(resp.body);
+              final bal = (data['data']?['balance']) ?? 0;
+              await prefs.setInt(
+                'viSoDu',
+                (bal is int) ? bal : int.tryParse(bal.toString()) ?? 0,
+              );
+            }
+          }
+        } catch (_) {}
+        EventBus().emit(Events.walletUpdated);
+      }
     });
 
     // When app opened from background via notification tap
@@ -760,6 +804,24 @@ class PushNotificationService {
     // Delay a frame to ensure route is built
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
+        // Ensure socket mapping is restored so accept/decline/end signals work
+        try {
+          final ctx = NavigationService.navigatorKey.currentContext;
+          if (ctx != null) {
+            final prefs = await SharedPreferences.getInstance();
+            final userId = prefs.getString('userId') ?? '';
+            final token = prefs.getString('token') ?? '';
+            if (userId.isNotEmpty) {
+              final sp = Provider.of<SocketProvider>(ctx, listen: false);
+              if (!sp.isConnected) {
+                sp.connect('https://garagebooking.onrender.com', token, userId);
+              } else {
+                sp.emit('join', userId);
+              }
+            }
+          }
+        } catch (_) {}
+
         await navigator.pushNamed(
           '/voice_call_entry',
           arguments: {

@@ -47,6 +47,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
     _setupAnimations();
     _setupVoiceCall();
     _listenToCallEvents();
+    _listenToSocketSignals();
   }
 
   void _setupAnimations() {
@@ -67,6 +68,32 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
       CurvedAnimation(parent: _avatarController, curve: Curves.elasticOut),
     );
     _avatarController.forward();
+  }
+
+  void _listenToSocketSignals() {
+    try {
+      final socketProvider = Provider.of<SocketProvider>(
+        context,
+        listen: false,
+      );
+      // Ensure no duplicate handlers
+      socketProvider.off('call_declined');
+      socketProvider.off('call_cancelled');
+      socketProvider.on('call_declined', (data) async {
+        if (!mounted) return;
+        try {
+          await _voiceService.leaveCall();
+        } catch (_) {}
+        if (mounted) Navigator.pop(context, {'status': 'declined'});
+      });
+      socketProvider.on('call_cancelled', (data) async {
+        if (!mounted) return;
+        try {
+          await _voiceService.leaveCall();
+        } catch (_) {}
+        if (mounted) Navigator.pop(context, {'status': 'cancelled'});
+      });
+    } catch (_) {}
   }
 
   void _setupVoiceCall() async {
@@ -162,6 +189,14 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
 
   @override
   void dispose() {
+    try {
+      final socketProvider = Provider.of<SocketProvider>(
+        context,
+        listen: false,
+      );
+      socketProvider.off('call_declined');
+      socketProvider.off('call_cancelled');
+    } catch (_) {}
     _pulseController.dispose();
     _avatarController.dispose();
     _stopCallTimer();

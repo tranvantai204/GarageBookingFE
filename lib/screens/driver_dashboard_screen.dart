@@ -39,7 +39,12 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
 
   void _loadData() {
     if (mounted) {
-      Provider.of<TripProvider>(context, listen: false).loadTrips();
+      final tp = Provider.of<TripProvider>(context, listen: false);
+      if (_driverId.isNotEmpty) {
+        tp.loadDriverUpcoming(_driverId);
+      } else {
+        tp.loadTrips();
+      }
       Provider.of<BookingProvider>(context, listen: false).loadBookings();
     }
   }
@@ -327,10 +332,14 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
               // Filter trips for current driver and today
               final today = DateTime.now();
               final tripDate = trip.thoiGianKhoiHanh;
+              final nameMatch =
+                  trip.taiXe.trim().toLowerCase() ==
+                  _driverName.trim().toLowerCase();
+              final idMatch = (trip.taiXeId?.toString() ?? '') == _driverId;
               return tripDate.day == today.day &&
                   tripDate.month == today.month &&
                   tripDate.year == today.year &&
-                  (trip.taiXe == _driverName || trip.taiXeId == _driverId);
+                  (nameMatch || idMatch);
             }).toList();
 
             if (todayTrips.isEmpty) {

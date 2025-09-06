@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../api/wallet_service.dart';
+import '../utils/event_bus.dart';
 import '../api/booking_service.dart';
 import 'package:flutter/services.dart';
 
@@ -51,6 +52,8 @@ class _WalletScreenState extends State<WalletScreen> {
       }
     } catch (_) {}
     if (mounted) setState(() => _loading = false);
+    // Phát sự kiện để ProfileScreen tự reload số dư
+    EventBus().emit(Events.walletUpdated);
   }
 
   @override

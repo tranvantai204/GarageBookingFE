@@ -97,9 +97,15 @@ class VehicleService {
     request.files.add(await http.MultipartFile.fromPath('image', filePath));
     final streamed = await request.send();
     final resp = await http.Response.fromStream(streamed);
-    if (resp.statusCode == 201) {
-      final data = jsonDecode(resp.body);
-      return data['url'];
+    if (resp.statusCode == 200 || resp.statusCode == 201) {
+      final data = jsonDecode(resp.body.isEmpty ? '{}' : resp.body);
+      // New backend shape: { success, data: { imageUrl } }
+      if (data['data'] is Map && data['data']['imageUrl'] != null) {
+        return data['data']['imageUrl'].toString();
+      }
+      // Legacy fallbacks
+      if (data['imageUrl'] != null) return data['imageUrl'].toString();
+      if (data['url'] != null) return data['url'].toString();
     }
     throw Exception('Upload thất bại: ${resp.statusCode}');
   }
@@ -115,10 +121,24 @@ class VehicleService {
     }
     final streamed = await request.send();
     final resp = await http.Response.fromStream(streamed);
-    if (resp.statusCode == 201) {
-      final data = jsonDecode(resp.body);
-      final List urls = data['urls'] ?? [];
-      return urls.map((e) => e.toString()).toList();
+    if (resp.statusCode == 200 || resp.statusCode == 201) {
+      final data = jsonDecode(resp.body.isEmpty ? '{}' : resp.body);
+      // New backend shape: { success, data: [ { imageUrl } ] }
+      if (data['data'] is List) {
+        final List list = data['data'];
+        return list
+            .map(
+              (e) => (e is Map && e['imageUrl'] != null)
+                  ? e['imageUrl'].toString()
+                  : null,
+            )
+            .whereType<String>()
+            .toList();
+      }
+      // Legacy shape: { urls: [ ... ] }
+      if (data['urls'] is List) {
+        return (data['urls'] as List).map((e) => e.toString()).toList();
+      }
     }
     throw Exception('Upload thất bại: ${resp.statusCode}');
   }

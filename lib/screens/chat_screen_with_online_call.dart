@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import '../api/vehicle_service.dart';
+import '../constants/api_constants.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -663,6 +666,8 @@ class _ChatScreenWithOnlineCallState extends State<ChatScreenWithOnlineCall>
             'targetUserId': otherId,
             'channelName': channelName,
           });
+        } else if (status == 'declined') {
+          await _sendCallNotificationMessage('Đối phương đã từ chối cuộc gọi');
         }
       }
     } catch (e) {
@@ -1019,14 +1024,29 @@ class _ChatScreenWithOnlineCallState extends State<ChatScreenWithOnlineCall>
                               ),
                             ),
                           ),
-                        Text(
-                          message.message,
-                          style: TextStyle(
-                            color: isMe ? Colors.white : Colors.black87,
-                            fontSize: 15,
-                            height: 1.3,
+                        if ((message.messageType ?? 'text') == 'image' &&
+                            (message.fileUrl ?? '').isNotEmpty) ...[
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Image.network(
+                              message.fileUrl!,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => const SizedBox(
+                                height: 120,
+                                child: Center(child: Icon(Icons.broken_image)),
+                              ),
+                            ),
                           ),
-                        ),
+                        ] else ...[
+                          Text(
+                            message.message,
+                            style: TextStyle(
+                              color: isMe ? Colors.white : Colors.black87,
+                              fontSize: 15,
+                              height: 1.3,
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 4),
                         Row(
                           mainAxisSize: MainAxisSize.min,
@@ -1230,6 +1250,23 @@ class _ChatScreenWithOnlineCallState extends State<ChatScreenWithOnlineCall>
               ),
             ),
             const SizedBox(width: 8),
+            // Attach image button
+            Container(
+              decoration: const BoxDecoration(
+                color: Color(0xFFF0F3F8),
+                shape: BoxShape.circle,
+              ),
+              child: IconButton(
+                onPressed: _openAttachMenu,
+                icon: const Icon(
+                  Icons.attach_file,
+                  color: Colors.blueGrey,
+                  size: 20,
+                ),
+                padding: const EdgeInsets.all(12),
+              ),
+            ),
+            const SizedBox(width: 8),
             Container(
               decoration: const BoxDecoration(
                 color: Colors.blue,
@@ -1318,6 +1355,153 @@ class _ChatScreenWithOnlineCallState extends State<ChatScreenWithOnlineCall>
         );
       }
     }
+  }
+
+  Future<void> _pickAndSendImage() async {
+    try {
+      final picker = ImagePicker();
+      final file = await picker.pickImage(
+        imageQuality: 80,
+        maxWidth: 1920,
+        source: ImageSource.gallery,
+      );
+      if (file == null) return;
+      final url = await VehicleService.uploadImage(file.path);
+      if (url.isEmpty) return;
+      final baseRoot = ApiConstants.baseUrl.endsWith('/api')
+          ? ApiConstants.baseUrl.substring(0, ApiConstants.baseUrl.length - 4)
+          : ApiConstants.baseUrl;
+      final fileUrl = url.startsWith('http') ? url : baseRoot + url;
+      final chatProvider = Provider.of<ChatProvider>(context, listen: false);
+      final ok = await chatProvider.sendMessage(
+        chatRoomId: widget.chatRoomId,
+        senderId: _userId,
+        senderName: _userName,
+        senderRole: _userRole,
+        message: '[image]',
+        messageType: 'image',
+        fileUrl: fileUrl,
+      );
+      if (ok) {
+        await chatProvider.loadMessages(widget.chatRoomId);
+        _scrollToBottom();
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gửi ảnh thất bại: $e'),
+          backgroundColor: Colors.red[400],
+        ),
+      );
+    }
+  }
+
+  void _openAttachMenu() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Ảnh từ thư viện'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickAndSendImage();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.link),
+                title: const Text('Dán URL ảnh'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _promptAndSendImageUrl();
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _promptAndSendImageUrl() async {
+    String input = '';
+    final url = await showDialog<String?>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Gửi ảnh bằng URL'),
+        content: TextField(
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: 'https://... (jpg, png, gif, webp, heic, ...)',
+          ),
+          onChanged: (v) => input = v.trim(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, input),
+            child: const Text('Gửi'),
+          ),
+        ],
+      ),
+    );
+    if ((url ?? '').isEmpty) return;
+    final isValid = _isValidImageUrl(url!);
+    if (!isValid) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('URL ảnh không hợp lệ')));
+      return;
+    }
+    try {
+      final chatProvider = Provider.of<ChatProvider>(context, listen: false);
+      final ok = await chatProvider.sendMessage(
+        chatRoomId: widget.chatRoomId,
+        senderId: _userId,
+        senderName: _userName,
+        senderRole: _userRole,
+        message: '[image]',
+        messageType: 'image',
+        fileUrl: url,
+      );
+      if (ok) {
+        await chatProvider.loadMessages(widget.chatRoomId);
+        _scrollToBottom();
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Gửi URL ảnh thất bại: $e')));
+    }
+  }
+
+  bool _isValidImageUrl(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null || !(uri.isScheme('http') || uri.isScheme('https')))
+      return false;
+    final lower = url.toLowerCase();
+    return lower.contains('.') &&
+        (lower.endsWith('.jpg') ||
+            lower.endsWith('.jpeg') ||
+            lower.endsWith('.png') ||
+            lower.endsWith('.gif') ||
+            lower.endsWith('.webp') ||
+            lower.endsWith('.bmp') ||
+            lower.endsWith('.heic') ||
+            lower.endsWith('.heif'));
   }
 
   void _showMessageOptions(ChatMessage message) {

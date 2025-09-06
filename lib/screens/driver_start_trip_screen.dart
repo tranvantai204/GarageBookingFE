@@ -4,6 +4,8 @@ import '../models/trip.dart';
 import '../providers/booking_provider.dart';
 import 'qr_scanner_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../providers/chat_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:geolocator/geolocator.dart';
 import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -59,22 +61,44 @@ class _DriverStartTripScreenState extends State<DriverStartTripScreen> {
     super.initState();
     _load();
     _restoreActiveIfNeeded();
+    // Đảm bảo socket được kết nối và gắn userId để có thể phát sự kiện
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final userId = prefs.getString('userId') ?? '';
+        final token = prefs.getString('token') ?? '';
+        if (userId.isNotEmpty) {
+          final sp = Provider.of<SocketProvider>(context, listen: false);
+          if (!sp.isConnected) {
+            sp.connect('https://garagebooking.onrender.com', token, userId);
+          } else {
+            sp.emit('join', userId);
+          }
+        }
+      } catch (_) {}
+    });
   }
 
   Future<void> _finishTrip() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final driverId = prefs.getString('userId') ?? '';
+      final token = prefs.getString('token') ?? '';
       final socketProvider = Provider.of<SocketProvider>(
         context,
         listen: false,
       );
-      if (socketProvider.isConnected) {
-        socketProvider.emit('trip_ended', {
-          'tripId': widget.trip.id,
-          'driverId': driverId,
-        });
+      if (!socketProvider.isConnected && driverId.isNotEmpty) {
+        socketProvider.connect(
+          'https://garagebooking.onrender.com',
+          token,
+          driverId,
+        );
       }
+      socketProvider.emit('trip_ended', {
+        'tripId': widget.trip.id,
+        'driverId': driverId,
+      });
     } catch (_) {}
     await _stopTracking();
     if (!mounted) return;
@@ -432,6 +456,10 @@ class _DriverStartTripScreenState extends State<DriverStartTripScreen> {
               final seats = (b['danhSachGhe'] as List).join(', ');
               final checked = b['trangThaiCheckIn'] == 'da_check_in';
               final paid = b['trangThaiThanhToan'] == 'da_thanh_toan';
+              final user = b['userId'];
+              final userId = user?['_id']?.toString() ?? '';
+              final userName = user?['hoTen']?.toString() ?? 'Khách hàng';
+              final userPhone = user?['soDienThoai']?.toString();
               return ListTile(
                 leading: CircleAvatar(
                   backgroundColor: paid
@@ -482,6 +510,60 @@ class _DriverStartTripScreenState extends State<DriverStartTripScreen> {
                               MaterialTapTargetSize.shrinkWrap,
                         ),
                       ],
+                    ),
+                  ],
+                ),
+                trailing: PopupMenuButton<String>(
+                  onSelected: (value) async {
+                    if (value == 'call' &&
+                        userPhone != null &&
+                        userPhone.isNotEmpty) {
+                      final uri = Uri.parse('tel:$userPhone');
+                      if (await canLaunchUrl(uri)) {
+                        await launchUrl(uri);
+                      }
+                    } else if (value == 'chat' && userId.isNotEmpty) {
+                      if (!mounted) return;
+                      final chatProvider = Provider.of<ChatProvider>(
+                        context,
+                        listen: false,
+                      );
+                      final prefs = await SharedPreferences.getInstance();
+                      final myId = prefs.getString('userId') ?? '';
+                      final myName = prefs.getString('hoTen') ?? '';
+                      final myRole = prefs.getString('vaiTro') ?? 'driver';
+                      final roomId = await chatProvider.createOrGetChatRoom(
+                        currentUserId: myId,
+                        currentUserName: myName,
+                        currentUserRole: myRole,
+                        targetUserId: userId,
+                        targetUserName: userName,
+                        targetUserRole: 'user',
+                      );
+                      if (!mounted) return;
+                      if (roomId != null) {
+                        Navigator.pushNamed(
+                          context,
+                          '/chat',
+                          arguments: {
+                            'chatRoomId': roomId,
+                            'chatRoomName': userName,
+                            'targetUserName': userName,
+                            'targetUserRole': 'user',
+                            'targetUserId': userId,
+                          },
+                        );
+                      }
+                    }
+                  },
+                  itemBuilder: (ctx) => [
+                    const PopupMenuItem(
+                      value: 'call',
+                      child: Text('Gọi khách'),
+                    ),
+                    const PopupMenuItem(
+                      value: 'chat',
+                      child: Text('Chat với khách'),
                     ),
                   ],
                 ),
@@ -540,7 +622,18 @@ class _DriverStartTripScreenState extends State<DriverStartTripScreen> {
     }
     final prefs = await SharedPreferences.getInstance();
     _driverId = prefs.getString('userId') ?? '';
+    final token = prefs.getString('token') ?? '';
     final socketProvider = Provider.of<SocketProvider>(context, listen: false);
+    // Bảo đảm kết nối socket trước khi phát sự kiện
+    if (!socketProvider.isConnected && _driverId.isNotEmpty) {
+      socketProvider.connect(
+        'https://garagebooking.onrender.com',
+        token,
+        _driverId,
+      );
+    } else if (_driverId.isNotEmpty) {
+      socketProvider.emit('join', _driverId);
+    }
 
     // Cập nhật vị trí ngay lập tức để người dùng thấy hiệu ứng
     try {
@@ -576,6 +669,19 @@ class _DriverStartTripScreenState extends State<DriverStartTripScreen> {
         _osmController.move(ll.LatLng(first.latitude, first.longitude), 16);
       } catch (_) {}
       setState(() {});
+      // Phát ngay vị trí và sự kiện bắt đầu để admin thấy tức thì
+      try {
+        socketProvider.emit('driver_location', {
+          'userId': _driverId,
+          'lat': first.latitude,
+          'lng': first.longitude,
+          'ts': DateTime.now().millisecondsSinceEpoch,
+        });
+        socketProvider.emit('trip_started', {
+          'tripId': widget.trip.id,
+          'driverId': _driverId,
+        });
+      } catch (_) {}
     } catch (_) {}
 
     _posSub?.cancel();
