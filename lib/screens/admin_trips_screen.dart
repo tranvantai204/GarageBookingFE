@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/trip_provider.dart';
 import '../providers/booking_provider.dart';
 import '../models/trip.dart';
 import '../models/booking.dart';
+import '../utils/date_utils.dart';
 
 class AdminTripsScreen extends StatefulWidget {
   const AdminTripsScreen({super.key});
@@ -294,7 +294,7 @@ class _AdminTripsScreenState extends State<AdminTripsScreen> {
               label: Text(
                 (_fromDate == null && _toDate == null)
                     ? 'Khoảng ngày'
-                    : '${DateFormat('dd/MM').format(_fromDate!)} - ${DateFormat('dd/MM').format(_toDate!)}',
+                    : '${AppDateUtils.formatVietnameseDate(_fromDate!)} - ${AppDateUtils.formatVietnameseDate(_toDate!)}',
               ),
               onPressed: _pickDateRange,
               onDeleted: (_fromDate != null || _toDate != null)
@@ -385,9 +385,9 @@ class _AdminTripsScreenState extends State<AdminTripsScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          DateFormat(
-                            'dd/MM/yyyy HH:mm',
-                          ).format(trip.thoiGianKhoiHanh),
+                          AppDateUtils.formatVietnameseDateTime(
+                            trip.thoiGianKhoiHanh,
+                          ),
                           style: TextStyle(
                             fontSize: 14,
                             color: Colors.grey[600],
@@ -648,7 +648,7 @@ class _AdminTripsScreenState extends State<AdminTripsScreen> {
                 ),
                 _buildDetailRow(
                   'Thời gian:',
-                  DateFormat('dd/MM/yyyy HH:mm').format(trip.thoiGianKhoiHanh),
+                  AppDateUtils.formatVietnameseDateTime(trip.thoiGianKhoiHanh),
                 ),
                 _buildDetailRow('Xe:', '${trip.soGhe} chỗ - ${trip.bienSoXe}'),
                 _buildDetailRow('Tài xế:', trip.taiXe),
@@ -854,7 +854,7 @@ class _AdminTripsScreenState extends State<AdminTripsScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Xác nhận xóa'),
         content: Text(
-          'Bạn có chắc chắn muốn xóa chuyến đi từ ${trip.diemDi} đến ${trip.diemDen}?\n\nThời gian: ${DateFormat('dd/MM/yyyy HH:mm').format(trip.thoiGianKhoiHanh)}\n\nHành động này không thể hoàn tác.',
+          'Bạn có chắc chắn muốn xóa chuyến đi từ ${trip.diemDi} đến ${trip.diemDen}?\n\nThời gian: ${AppDateUtils.formatVietnameseDateTime(trip.thoiGianKhoiHanh)}\n\nHành động này không thể hoàn tác.',
         ),
         actions: [
           TextButton(

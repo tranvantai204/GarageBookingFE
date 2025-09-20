@@ -6,7 +6,7 @@ import '../widgets/trip_card.dart';
 import '../models/trip.dart';
 import 'create_trip_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:intl/intl.dart';
+import '../utils/date_utils.dart';
 
 class TripListScreen extends StatefulWidget {
   final bool showAppBar;
@@ -482,7 +482,7 @@ class _TripListScreenState extends State<TripListScreen> {
               label: Text(
                 (_fromDate == null || _toDate == null)
                     ? 'Khoảng ngày'
-                    : '${DateFormat('dd/MM').format(_fromDate!)} - ${DateFormat('dd/MM').format(_toDate!)}',
+                    : '${AppDateUtils.formatVietnameseDate(_fromDate!)} - ${AppDateUtils.formatVietnameseDate(_toDate!)}',
               ),
               onPressed: _pickDateRange,
               onDeleted: (_fromDate != null || _toDate != null)

@@ -6,6 +6,7 @@ import '../providers/booking_provider.dart';
 import '../models/trip.dart';
 import 'driver_trips_screen.dart';
 import 'qr_scanner_screen.dart';
+import '../utils/date_utils.dart';
 
 class DriverDashboardScreen extends StatefulWidget {
   const DriverDashboardScreen({super.key});
@@ -547,8 +548,8 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
   }
 
   String _formatTime(String dateTimeString) {
-    final dateTime = DateTime.parse(dateTimeString);
-    return '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+    final dateTime = AppDateUtils.safeParseDate(dateTimeString);
+    return AppDateUtils.formatVietnameseTime(dateTime);
   }
 
   void _navigateToQRScanner() {

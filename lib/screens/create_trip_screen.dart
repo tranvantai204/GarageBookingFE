@@ -7,6 +7,7 @@ import '../providers/user_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import '../api/vehicle_service.dart';
+import '../utils/date_utils.dart';
 
 class CreateTripScreen extends StatefulWidget {
   final bool showAppBar;
@@ -121,10 +122,24 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     super.dispose();
   }
 
+  // Hàm helper để format thời gian gửi lên server
+  String _formatDateTimeForServer(DateTime dateTime) {
+    // Gửi thời gian local với timezone offset
+    // Ví dụ: 2025-01-07T12:00:00+07:00
+    final localDateTime = DateTime(
+      dateTime.year,
+      dateTime.month,
+      dateTime.day,
+      dateTime.hour,
+      dateTime.minute,
+    );
+    return dateTime.toUtc().toIso8601String();
+  }
+
   Future<void> _selectDateTime() async {
     final DateTime? pickedDate = await showDatePicker(
       context: context,
-      initialDate: DateTime.now().add(Duration(hours: 1)),
+      initialDate: _selectedDateTime ?? DateTime.now().add(Duration(hours: 1)),
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(Duration(days: 30)),
     );
@@ -132,11 +147,14 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     if (pickedDate != null) {
       final TimeOfDay? pickedTime = await showTimePicker(
         context: context,
-        initialTime: TimeOfDay.now(),
+        initialTime: _selectedDateTime != null
+            ? TimeOfDay.fromDateTime(_selectedDateTime!)
+            : TimeOfDay.now(),
       );
 
       if (pickedTime != null) {
         setState(() {
+          // Tạo DateTime với thời gian local được chọn
           _selectedDateTime = DateTime(
             pickedDate.year,
             pickedDate.month,
@@ -144,6 +162,11 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
             pickedTime.hour,
             pickedTime.minute,
           );
+
+          // Debug log
+          print('🕐 Selected time: $_selectedDateTime');
+          print('🕐 Selected time local: ${_selectedDateTime!.toLocal()}');
+          print('🕐 Selected time UTC: ${_selectedDateTime!.toUtc()}');
         });
       }
     }
@@ -250,12 +273,21 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
       print('📝 Form data:');
       print('- Điểm đi: ${_diemDiController.text}');
       print('- Điểm đến: ${_diemDenController.text}');
-      print('- Thời gian: $_selectedDateTime');
+      print('- Thời gian local: $_selectedDateTime');
+      print(
+        '- Thời gian gửi server: ${_formatDateTimeForServer(_selectedDateTime!)}',
+      );
       print('- Số ghế: $_soGhe');
       print('- Loại xe: $_selectedVehicleType');
       print('- Giá vé: ${_giaVeController.text}');
       print('- Tài xế: $_selectedDriverName');
       print('- Driver ID: $_selectedDriverId');
+
+      // Debug thêm về timezone
+      print('🌍 Timezone debug:');
+      print('- Local timezone offset: ${DateTime.now().timeZoneOffset}');
+      print('- Selected time in UTC: ${_selectedDateTime!.toUtc()}');
+      print('- Selected time in local: ${_selectedDateTime!.toLocal()}');
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('token');
 
@@ -272,7 +304,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
         body: jsonEncode({
           'diemDi': _diemDiController.text.trim(),
           'diemDen': _diemDenController.text.trim(),
-          'thoiGianKhoiHanh': _selectedDateTime!.toIso8601String(),
+          'thoiGianKhoiHanh': _formatDateTimeForServer(_selectedDateTime!),
           'soGhe': _soGhe,
           'loaiXe': _selectedVehicleType,
           'giaVe': int.parse(_giaVeController.text),
@@ -286,6 +318,26 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
       );
 
       if (response.statusCode == 201) {
+        // Debug response data
+        final responseData = jsonDecode(response.body);
+        print('✅ Tạo chuyến thành công!');
+        print('📋 Response data: $responseData');
+
+        if (responseData['trip'] != null) {
+          print('📋 Trip data from server:');
+          print(
+            '- Server thoiGianKhoiHanh: ${responseData['trip']['thoiGianKhoiHanh']}',
+          );
+          if (responseData['trip']['thoiGianKhoiHanh'] != null) {
+            final serverTime = DateTime.parse(
+              responseData['trip']['thoiGianKhoiHanh'],
+            );
+            print('- Server time parsed: $serverTime');
+            print('- Server time local: ${serverTime.toLocal()}');
+            print('- Server time UTC: ${serverTime.toUtc()}');
+          }
+        }
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -805,55 +857,61 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
   }
 
   Widget _buildTimePicker() {
-    // preset every 2h and 3h within next 7 days
-    final now = DateTime.now();
-    final List<DateTime> presets = [];
-    for (int d = 0; d < 7; d++) {
-      final day = DateTime(now.year, now.month, now.day).add(Duration(days: d));
-      for (int h = 0; h < 24; h += 2) {
-        final t = DateTime(day.year, day.month, day.day, h);
-        if (t.isAfter(now)) presets.add(t);
-      }
-      for (int h = 1; h < 24; h += 3) {
-        final t = DateTime(day.year, day.month, day.day, h);
-        if (t.isAfter(now)) presets.add(t);
-      }
-    }
-    presets.sort();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: presets.take(12).map((dt) {
-            final label =
-                '${dt.day}/${dt.month} ${dt.hour.toString().padLeft(2, '0')}:00';
-            final bool selected =
-                _selectedDateTime != null &&
-                dt.year == _selectedDateTime!.year &&
-                dt.month == _selectedDateTime!.month &&
-                dt.day == _selectedDateTime!.day &&
-                dt.hour == _selectedDateTime!.hour;
-            return ChoiceChip(
-              label: Text(label),
-              selected: selected,
-              onSelected: (_) => setState(() => _selectedDateTime = dt),
-            );
-          }).toList(),
-        ),
-        const SizedBox(height: 8),
-        ElevatedButton.icon(
-          onPressed: _selectDateTime,
-          icon: const Icon(Icons.access_time),
-          label: Text(
-            _selectedDateTime == null
-                ? 'Chọn khung giờ khác'
-                : 'Đã chọn: ${_selectedDateTime!.day}/${_selectedDateTime!.month}/${_selectedDateTime!.year} - ${_selectedDateTime!.hour.toString().padLeft(2, '0')}:${_selectedDateTime!.minute.toString().padLeft(2, '0')}',
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(8),
+        color: Colors.grey.shade50,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Thời gian đã chọn:',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade700,
+            ),
           ),
-        ),
-      ],
+          const SizedBox(height: 8),
+          Text(
+            _selectedDateTime == null
+                ? 'Chưa chọn thời gian'
+                : AppDateUtils.formatVietnameseDateTime(_selectedDateTime!),
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: _selectedDateTime == null
+                  ? Colors.grey.shade500
+                  : Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _selectDateTime,
+              icon: const Icon(Icons.access_time, size: 20),
+              label: const Text(
+                'Chọn thời gian khởi hành',
+                style: TextStyle(fontSize: 16),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1E88E5),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                elevation: 2,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

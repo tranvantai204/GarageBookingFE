@@ -1,3 +1,5 @@
+import '../utils/date_utils.dart';
+
 class Seat {
   final String tenGhe;
   final String trangThai; // 'trong', 'dadat'
@@ -59,29 +61,22 @@ class Trip {
 
   // Getter để format thời gian khởi hành
   String get gioKhoiHanh {
-    return '${thoiGianKhoiHanh.hour.toString().padLeft(2, '0')}:${thoiGianKhoiHanh.minute.toString().padLeft(2, '0')}';
+    return AppDateUtils.formatVietnameseTime(thoiGianKhoiHanh);
   }
 
   // Getter để format ngày khởi hành
   String get ngayKhoiHanh {
-    return '${thoiGianKhoiHanh.day.toString().padLeft(2, '0')}/${thoiGianKhoiHanh.month.toString().padLeft(2, '0')}/${thoiGianKhoiHanh.year}';
+    return AppDateUtils.formatVietnameseDate(thoiGianKhoiHanh);
   }
 
   factory Trip.fromJson(Map<String, dynamic> json) {
     try {
-      DateTime _safeParseDate(dynamic v) {
-        if (v == null) return DateTime.now();
-        final s = v.toString();
-        final dt = DateTime.tryParse(s);
-        return (dt ?? DateTime.now()).toLocal();
-      }
-
       return Trip(
         id: json['_id'] ?? '',
         nhaXe: json['nhaXe'] ?? 'Hà Phương',
         diemDi: json['diemDi'] ?? '',
         diemDen: json['diemDen'] ?? '',
-        thoiGianKhoiHanh: _safeParseDate(json['thoiGianKhoiHanh']),
+        thoiGianKhoiHanh: AppDateUtils.safeParseDate(json['thoiGianKhoiHanh']),
         soGhe: json['soGhe'] ?? 0,
         danhSachGhe:
             (json['danhSachGhe'] as List<dynamic>?)
@@ -93,10 +88,10 @@ class Trip {
         bienSoXe: json['bienSoXe'] ?? 'Chưa cập nhật',
         loaiXe: json['loaiXe'] ?? 'ghe_ngoi',
         gioKetThuc: json['gioKetThuc'] != null
-            ? _safeParseDate(json['gioKetThuc'])
+            ? AppDateUtils.safeParseDate(json['gioKetThuc'])
             : null,
-        createdAt: _safeParseDate(json['createdAt']),
-        updatedAt: _safeParseDate(json['updatedAt']),
+        createdAt: AppDateUtils.safeParseDate(json['createdAt']),
+        updatedAt: AppDateUtils.safeParseDate(json['updatedAt']),
       );
     } catch (e) {
       print('❌ Error parsing Trip from JSON: $e');

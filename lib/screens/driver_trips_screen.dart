@@ -10,6 +10,7 @@ import 'dart:async';
 import 'package:geolocator/geolocator.dart';
 import 'driver_start_trip_screen.dart';
 import 'driver_completed_trips_screen.dart';
+import '../utils/date_utils.dart';
 
 class DriverTripsScreen extends StatefulWidget {
   const DriverTripsScreen({super.key});
@@ -399,8 +400,8 @@ class _DriverTripsScreenState extends State<DriverTripsScreen> {
 
   String _formatTime(String dateTimeString) {
     try {
-      final dateTime = DateTime.parse(dateTimeString);
-      return '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+      final dateTime = AppDateUtils.safeParseDate(dateTimeString);
+      return AppDateUtils.formatVietnameseTime(dateTime);
     } catch (_) {
       return dateTimeString;
     }
@@ -408,9 +409,7 @@ class _DriverTripsScreenState extends State<DriverTripsScreen> {
 
   String _formatTimeNullable(DateTime? dt) {
     if (dt == null) return 'Chưa xác định';
-    final hh = dt.hour.toString().padLeft(2, '0');
-    final mm = dt.minute.toString().padLeft(2, '0');
-    return '$hh:$mm';
+    return AppDateUtils.formatVietnameseTime(dt);
   }
 
   // Legacy helper removed from new UI

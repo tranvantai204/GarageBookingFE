@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
 import '../providers/booking_provider.dart';
 import '../models/booking.dart';
+import '../utils/date_utils.dart';
 
 class AdminBookingsScreen extends StatefulWidget {
   const AdminBookingsScreen({super.key});
@@ -268,7 +268,7 @@ class _AdminBookingsScreenState extends State<AdminBookingsScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Đặt lúc: ${DateFormat('dd/MM/yyyy HH:mm').format(booking.createdAt)}',
+                          'Đặt lúc: ${AppDateUtils.formatVietnameseDateTime(booking.createdAt)}',
                           style: TextStyle(
                             fontSize: 12,
                             color: Colors.grey[600],
@@ -320,9 +320,9 @@ class _AdminBookingsScreenState extends State<AdminBookingsScreen> {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      DateFormat(
-                        'dd/MM/yyyy HH:mm',
-                      ).format(booking.thoiGianKhoiHanh!),
+                      AppDateUtils.formatVietnameseDateTime(
+                        booking.thoiGianKhoiHanh!,
+                      ),
                       style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
@@ -488,9 +488,9 @@ class _AdminBookingsScreenState extends State<AdminBookingsScreen> {
               if (booking.thoiGianKhoiHanh != null)
                 _buildDetailRow(
                   'Khởi hành:',
-                  DateFormat(
-                    'dd/MM/yyyy HH:mm',
-                  ).format(booking.thoiGianKhoiHanh!),
+                  AppDateUtils.formatVietnameseDateTime(
+                    booking.thoiGianKhoiHanh!,
+                  ),
                 ),
               _buildDetailRow(
                 'Loại điểm đón:',
@@ -502,7 +502,7 @@ class _AdminBookingsScreenState extends State<AdminBookingsScreen> {
                 _buildDetailRow('Ghi chú:', booking.ghiChuDiemDon!),
               _buildDetailRow(
                 'Đặt lúc:',
-                DateFormat('dd/MM/yyyy HH:mm').format(booking.createdAt),
+                AppDateUtils.formatVietnameseDateTime(booking.createdAt),
               ),
             ],
           ),

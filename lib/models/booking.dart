@@ -1,3 +1,5 @@
+import '../utils/date_utils.dart';
+
 class Booking {
   final String id;
   final String userId;
@@ -58,51 +60,53 @@ class Booking {
   String get trangThai => trangThaiThanhToan;
 
   factory Booking.fromJson(Map<String, dynamic> json) {
-    return Booking(
-      id: json['_id'] ?? '',
-      userId: json['userId'] ?? '',
-      tripId: json['tripId'] is String
-          ? json['tripId']
-          : (json['tripId']?['_id'] ?? ''),
-      danhSachGhe: List<String>.from(json['danhSachGhe'] ?? []),
-      tongTien: json['tongTien'] ?? 0,
-      maVe: json['maVe'] ?? '',
-      trangThaiThanhToan: json['trangThaiThanhToan'] ?? 'chua_thanh_toan',
-      trangThaiCheckIn: json['trangThaiCheckIn'] ?? 'chua_check_in',
-      loaiDiemDon: json['loaiDiemDon'] ?? 'ben_xe',
-      qrCode: json['qrCode'],
-      thoiGianCheckIn: json['thoiGianCheckIn'] != null
-          ? DateTime.parse(json['thoiGianCheckIn'])
-          : null,
-      nguoiCheckIn: json['nguoiCheckIn'],
-      diaChiDon: json['diaChiDon'],
-      ghiChuDiemDon: json['ghiChuDiemDon'],
-      createdAt: DateTime.parse(
-        json['createdAt'] ?? DateTime.now().toIso8601String(),
-      ),
-      updatedAt: DateTime.parse(
-        json['updatedAt'] ?? DateTime.now().toIso8601String(),
-      ),
-      // Thông tin từ populate tripId
-      diemDi: json['tripId'] is Map ? json['tripId']['diemDi'] : null,
-      diemDen: json['tripId'] is Map ? json['tripId']['diemDen'] : null,
-      thoiGianKhoiHanh:
-          json['tripId'] is Map && json['tripId']['thoiGianKhoiHanh'] != null
-          ? DateTime.parse(json['tripId']['thoiGianKhoiHanh'])
-          : null,
-      taiXe: json['tripId'] is Map ? json['tripId']['taiXe'] : null,
-      taiXeId: json['tripId'] is Map ? json['tripId']['taiXeId'] : null,
-      bienSoXe: json['tripId'] is Map ? json['tripId']['bienSoXe'] : null,
-      loaiXe: json['tripId'] is Map ? json['tripId']['loaiXe'] : null,
-      vehicleImages:
-          json['vehicleSnapshot'] is Map &&
-              json['vehicleSnapshot']['hinhAnh'] is List
-          ? List<String>.from(json['vehicleSnapshot']['hinhAnh'])
-          : (json['tripId'] is Map &&
-                    json['tripId']['vehicleInfo'] is Map &&
-                    json['tripId']['vehicleInfo']['hinhAnh'] is List
-                ? List<String>.from(json['tripId']['vehicleInfo']['hinhAnh'])
-                : const []),
-    );
+    try {
+      return Booking(
+        id: json['_id'] ?? '',
+        userId: json['userId'] ?? '',
+        tripId: json['tripId'] is String
+            ? json['tripId']
+            : (json['tripId']?['_id'] ?? ''),
+        danhSachGhe: List<String>.from(json['danhSachGhe'] ?? []),
+        tongTien: json['tongTien'] ?? 0,
+        maVe: json['maVe'] ?? '',
+        trangThaiThanhToan: json['trangThaiThanhToan'] ?? 'chua_thanh_toan',
+        trangThaiCheckIn: json['trangThaiCheckIn'] ?? 'chua_check_in',
+        loaiDiemDon: json['loaiDiemDon'] ?? 'ben_xe',
+        qrCode: json['qrCode'],
+        thoiGianCheckIn: json['thoiGianCheckIn'] != null
+            ? AppDateUtils.safeParseDate(json['thoiGianCheckIn'])
+            : null,
+        nguoiCheckIn: json['nguoiCheckIn'],
+        diaChiDon: json['diaChiDon'],
+        ghiChuDiemDon: json['ghiChuDiemDon'],
+        createdAt: AppDateUtils.safeParseDate(json['createdAt']),
+        updatedAt: AppDateUtils.safeParseDate(json['updatedAt']),
+        // Thông tin từ populate tripId
+        diemDi: json['tripId'] is Map ? json['tripId']['diemDi'] : null,
+        diemDen: json['tripId'] is Map ? json['tripId']['diemDen'] : null,
+        thoiGianKhoiHanh:
+            json['tripId'] is Map && json['tripId']['thoiGianKhoiHanh'] != null
+            ? AppDateUtils.safeParseDate(json['tripId']['thoiGianKhoiHanh'])
+            : null,
+        taiXe: json['tripId'] is Map ? json['tripId']['taiXe'] : null,
+        taiXeId: json['tripId'] is Map ? json['tripId']['taiXeId'] : null,
+        bienSoXe: json['tripId'] is Map ? json['tripId']['bienSoXe'] : null,
+        loaiXe: json['tripId'] is Map ? json['tripId']['loaiXe'] : null,
+        vehicleImages:
+            json['vehicleSnapshot'] is Map &&
+                json['vehicleSnapshot']['hinhAnh'] is List
+            ? List<String>.from(json['vehicleSnapshot']['hinhAnh'])
+            : (json['tripId'] is Map &&
+                      json['tripId']['vehicleInfo'] is Map &&
+                      json['tripId']['vehicleInfo']['hinhAnh'] is List
+                  ? List<String>.from(json['tripId']['vehicleInfo']['hinhAnh'])
+                  : const []),
+      );
+    } catch (e) {
+      print('❌ Error parsing Booking from JSON: $e');
+      print('📄 JSON data: $json');
+      rethrow;
+    }
   }
 }

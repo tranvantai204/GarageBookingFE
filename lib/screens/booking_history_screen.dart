@@ -10,6 +10,7 @@ import 'booking_payment_screen.dart';
 import '../api/feedback_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../api/refund_service.dart';
+import '../utils/date_utils.dart';
 
 class BookingHistoryScreen extends StatefulWidget {
   final bool showAppBar;
@@ -91,11 +92,13 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
                     if (booking.thoiGianKhoiHanh != null)
                       _buildDetailRow(
                         'Khởi hành:',
-                        '${booking.thoiGianKhoiHanh!.day}/${booking.thoiGianKhoiHanh!.month}/${booking.thoiGianKhoiHanh!.year} ${booking.thoiGianKhoiHanh!.hour.toString().padLeft(2, '0')}:${booking.thoiGianKhoiHanh!.minute.toString().padLeft(2, '0')}',
+                        AppDateUtils.formatVietnameseDateTime(
+                          booking.thoiGianKhoiHanh!,
+                        ),
                       ),
                     _buildDetailRow(
                       'Đặt lúc:',
-                      '${booking.createdAt.day}/${booking.createdAt.month}/${booking.createdAt.year} ${booking.createdAt.hour.toString().padLeft(2, '0')}:${booking.createdAt.minute.toString().padLeft(2, '0')}',
+                      AppDateUtils.formatVietnameseDateTime(booking.createdAt),
                     ),
                     const SizedBox(height: 12),
                     const Divider(),
