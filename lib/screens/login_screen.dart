@@ -95,7 +95,7 @@ class _LoginScreenState extends State<LoginScreen>
               try {
                 final sp = Provider.of<SocketProvider>(context, listen: false);
                 if (!sp.isConnected) {
-                  sp.connect('https://garagebooking.onrender.com', token, userId);
+                  sp.connect('https://ha-phuong-mongodb-api.onrender.com', token, userId);
                 } else {
                   sp.emit('join', userId);
                 }
@@ -122,7 +122,7 @@ class _LoginScreenState extends State<LoginScreen>
 
   Future<bool> _tryAlternativeServers() async {
     final alternativeUrls = [
-      'https://garagebooking.onrender.com/api',
+      'https://ha-phuong-mongodb-api.onrender.com/api',
       'https://ha-phuong-app.onrender.com/api',
     ];
     for (final url in alternativeUrls) {
@@ -156,7 +156,7 @@ class _LoginScreenState extends State<LoginScreen>
                 try {
                   final sp = Provider.of<SocketProvider>(context, listen: false);
                   if (!sp.isConnected) {
-                    sp.connect('https://garagebooking.onrender.com', token, userId);
+                    sp.connect('https://ha-phuong-mongodb-api.onrender.com', token, userId);
                   } else {
                     sp.emit('join', userId);
                   }

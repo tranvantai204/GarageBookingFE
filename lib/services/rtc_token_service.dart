@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 
 class RTCTokenService {
   // Production URL - points to main backend voice API
-  static const String baseUrl = "https://garagebooking.onrender.com/api/voice";
+  static const String baseUrl = "https://ha-phuong-mongodb-api.onrender.com/api/voice";
 
   // Local development URL
   static const String localUrl = "http://localhost:3000";

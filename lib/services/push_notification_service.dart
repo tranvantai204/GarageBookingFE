@@ -814,7 +814,7 @@ class PushNotificationService {
             if (userId.isNotEmpty) {
               final sp = Provider.of<SocketProvider>(ctx, listen: false);
               if (!sp.isConnected) {
-                sp.connect('https://garagebooking.onrender.com', token, userId);
+                sp.connect('https://ha-phuong-mongodb-api.onrender.com', token, userId);
               } else {
                 sp.emit('join', userId);
               }

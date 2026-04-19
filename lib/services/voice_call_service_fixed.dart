@@ -9,7 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class VoiceCallServiceFixed {
   static const String appId =
       "aec4d4a14d994fb1904ce07a17cd4c2c"; // Agora App ID
-  static const String baseUrl = "https://garagebooking.onrender.com/api/voice";
+  static const String baseUrl = "https://ha-phuong-mongodb-api.onrender.com/api/voice";
 
   RtcEngine? _engine;
   bool _isJoined = false;

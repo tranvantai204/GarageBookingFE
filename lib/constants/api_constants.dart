@@ -1,11 +1,11 @@
 class ApiConstants {
   // Base URLs cho API (fallback servers)
   static const List<String> serverUrls = [
-    'https://garagebooking.onrender.com/api',
+    'https://ha-phuong-mongodb-api.onrender.com/api',
   ];
 
   // Primary server (đang hoạt động)
-  static const String baseUrl = 'https://garagebooking.onrender.com/api';
+  static const String baseUrl = 'https://ha-phuong-mongodb-api.onrender.com/api';
 
   // Auth endpoints
   static const String loginEndpoint = '/auth/login';
@@ -92,9 +92,9 @@ class ApiConstants {
   }
 
   // Environment specific URLs
-  static const String devBaseUrl = 'https://garagebooking.onrender.com/api';
-  static const String stagingBaseUrl = 'https://garagebooking.onrender.com/api';
-  static const String prodBaseUrl = 'https://garagebooking.onrender.com/api';
+  static const String devBaseUrl = 'https://ha-phuong-mongodb-api.onrender.com/api';
+  static const String stagingBaseUrl = 'https://ha-phuong-mongodb-api.onrender.com/api';
+  static const String prodBaseUrl = 'https://ha-phuong-mongodb-api.onrender.com/api';
 
   // Get base URL based on environment
   static String getBaseUrlForEnvironment(String environment) {

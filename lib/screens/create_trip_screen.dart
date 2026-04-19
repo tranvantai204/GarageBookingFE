@@ -192,7 +192,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
 
       final response = await http
           .get(
-            Uri.parse('https://garagebooking.onrender.com/api/auth/me'),
+            Uri.parse('https://ha-phuong-mongodb-api.onrender.com/api/auth/me'),
             headers: {
               'Content-Type': 'application/json',
               'Authorization': 'Bearer $token',

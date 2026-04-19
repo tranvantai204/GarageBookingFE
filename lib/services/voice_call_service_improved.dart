@@ -272,7 +272,7 @@ class VoiceCallServiceImproved {
     try {
       final response = await http.get(
         Uri.parse(
-          'https://garagebooking.onrender.com/api/voice/rtcToken?channelName=$channelName&uid=$uid',
+          'https://ha-phuong-mongodb-api.onrender.com/api/voice/rtcToken?channelName=$channelName&uid=$uid',
         ),
       );
       if (response.statusCode == 200) {

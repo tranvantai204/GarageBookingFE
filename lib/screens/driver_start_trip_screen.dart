@@ -70,7 +70,7 @@ class _DriverStartTripScreenState extends State<DriverStartTripScreen> {
         if (userId.isNotEmpty) {
           final sp = Provider.of<SocketProvider>(context, listen: false);
           if (!sp.isConnected) {
-            sp.connect('https://garagebooking.onrender.com', token, userId);
+            sp.connect('https://ha-phuong-mongodb-api.onrender.com', token, userId);
           } else {
             sp.emit('join', userId);
           }
@@ -90,7 +90,7 @@ class _DriverStartTripScreenState extends State<DriverStartTripScreen> {
       );
       if (!socketProvider.isConnected && driverId.isNotEmpty) {
         socketProvider.connect(
-          'https://garagebooking.onrender.com',
+          'https://ha-phuong-mongodb-api.onrender.com',
           token,
           driverId,
         );
@@ -627,7 +627,7 @@ class _DriverStartTripScreenState extends State<DriverStartTripScreen> {
     // Bảo đảm kết nối socket trước khi phát sự kiện
     if (!socketProvider.isConnected && _driverId.isNotEmpty) {
       socketProvider.connect(
-        'https://garagebooking.onrender.com',
+        'https://ha-phuong-mongodb-api.onrender.com',
         token,
         _driverId,
       );

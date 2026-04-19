@@ -224,7 +224,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       );
       if (!socketProvider.isConnected) {
         socketProvider.connect(
-          'https://garagebooking.onrender.com',
+          'https://ha-phuong-mongodb-api.onrender.com',
           token,
           userId,
         );
