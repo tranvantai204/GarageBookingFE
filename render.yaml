@@ -11,5 +11,5 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: MONGO_URI
-        value: mongodb+srv://tuanas:tuanas123@cluster0.ixqhj.mongodb.net/HaPhuongApp?retryWrites=true&w=majority&appName=Cluster0
+        value: mongodb+srv://tranvantai:tranvantai@cluster0.ixqhj.mongodb.net/HaPhuongApp?retryWrites=true&w=majority&appName=Cluster0
     healthCheckPath: /
