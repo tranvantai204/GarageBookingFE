@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../constants/api_constants.dart';
-import '../widgets/logo_widget.dart';
-import '../widgets/simple_background.dart';
 import 'test_accounts_screen.dart';
 import 'register_screen.dart';
 import '../services/push_notification_service.dart';
@@ -13,6 +12,8 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:provider/provider.dart';
 import '../providers/socket_provider.dart';
 import 'forgot_password_screen.dart';
+import '../theme/app_theme.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -21,39 +22,49 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends State<LoginScreen>
+    with TickerProviderStateMixin {
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
+  bool _obscurePassword = true;
+
+  late AnimationController _fadeCtrl;
+  late Animation<double> _fadeAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+      ),
+    );
+    _fadeCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+    _fadeAnim = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
+    _fadeCtrl.forward();
+  }
 
   @override
   void dispose() {
     _phoneController.dispose();
     _passwordController.dispose();
+    _fadeCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _handleLogin() async {
-    // Validation
     if (_phoneController.text.trim().isEmpty ||
         _passwordController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vui lòng nhập đầy đủ thông tin'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showError('Vui lòng nhập đầy đủ thông tin');
       return;
     }
-
-    setState(() {
-      _isLoading = true;
-    });
-
+    setState(() => _isLoading = true);
     try {
-      print('🔐 Đăng nhập với: ${_phoneController.text}');
-
-      // Thử kết nối server
       final response = await http
           .post(
             Uri.parse('${ApiConstants.baseUrl}/auth/login'),
@@ -68,40 +79,23 @@ class _LoginScreenState extends State<LoginScreen> {
             onTimeout: () => throw Exception('Server timeout'),
           );
 
-      print('📡 Response: ${response.statusCode}');
-
       if (response.statusCode == 200) {
         final jsonResponse = jsonDecode(response.body);
         await _saveUserData(jsonResponse);
         await SessionManager.saveToken(jsonResponse['token'] ?? '');
-
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Chào mừng ${jsonResponse['hoTen']}!'),
-              backgroundColor: Colors.green,
-            ),
-          );
-          // Ensure FCM token sync and topic subscription for this user
+          _showSuccess('Chào mừng ${jsonResponse['hoTen']}!');
           await PushNotificationService.syncFcmTokenWithServer();
           try {
             final prefs = await SharedPreferences.getInstance();
             final userId = prefs.getString('userId');
             final token = prefs.getString('token') ?? '';
             if (userId != null && userId.isNotEmpty) {
-              // Subscribe to user topic to receive calls/notifications even without re-login
-              await FirebaseMessaging.instance.subscribeToTopic(
-                'user_' + userId,
-              );
-              // Proactively connect socket and map user
+              await FirebaseMessaging.instance.subscribeToTopic('user_$userId');
               try {
                 final sp = Provider.of<SocketProvider>(context, listen: false);
                 if (!sp.isConnected) {
-                  sp.connect(
-                    'https://garagebooking.onrender.com',
-                    token,
-                    userId,
-                  );
+                  sp.connect('https://garagebooking.onrender.com', token, userId);
                 } else {
                   sp.emit('join', userId);
                 }
@@ -111,58 +105,28 @@ class _LoginScreenState extends State<LoginScreen> {
           Navigator.pushReplacementNamed(context, '/trips');
         }
       } else if (response.statusCode == 401 || response.statusCode == 400) {
-        // Sai thông tin đăng nhập - không thử server khác
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Sai số điện thoại hoặc mật khẩu'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        return; // Dừng ở đây, không thử server khác
+        if (mounted) _showError('Sai số điện thoại hoặc mật khẩu');
+        return;
       } else {
-        // Lỗi server khác (500, 503, etc.) - thử server khác
         throw Exception('Lỗi server: ${response.statusCode}');
       }
     } catch (e) {
-      print('❌ Lỗi: $e');
-
-      // Thử server khác
       bool serverConnected = await _tryAlternativeServers();
-
-      if (!serverConnected) {
-        // Không có server nào hoạt động - hiển thị lỗi
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Không thể kết nối đến server. Vui lòng thử lại sau.',
-              ),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
+      if (!serverConnected && mounted) {
+        _showError('Không thể kết nối đến server. Vui lòng thử lại sau.');
       }
     } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   Future<bool> _tryAlternativeServers() async {
     final alternativeUrls = [
-      'https://garagebooking.onrender.com/api', // Server chính đang hoạt động
+      'https://garagebooking.onrender.com/api',
       'https://ha-phuong-app.onrender.com/api',
     ];
-
     for (final url in alternativeUrls) {
       try {
-        print('🔄 Thử server: $url');
-
         final response = await http
             .post(
               Uri.parse('$url/auth/login'),
@@ -176,51 +140,23 @@ class _LoginScreenState extends State<LoginScreen> {
               const Duration(seconds: 10),
               onTimeout: () => throw Exception('Server timeout'),
             );
-
-        print('📡 Server $url response: ${response.statusCode}');
-
         if (response.statusCode == 200) {
-          print('✅ Server hoạt động: $url');
-
           final jsonResponse = jsonDecode(response.body);
-          print('🔍 Login response data: $jsonResponse');
-          print('👤 User role from server: ${jsonResponse['vaiTro']}');
-          print('📱 Phone number: ${jsonResponse['soDienThoai']}');
-          print('🆔 User ID: ${jsonResponse['_id']}');
-
           await _saveUserData(jsonResponse);
           await SessionManager.saveToken(jsonResponse['token'] ?? '');
-
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'Đăng nhập thành công: ${jsonResponse['hoTen']} (${jsonResponse['vaiTro']})',
-                ),
-                backgroundColor: Colors.green,
-              ),
-            );
+            _showSuccess('Đăng nhập thành công: ${jsonResponse['hoTen']}');
             await PushNotificationService.syncFcmTokenWithServer();
             try {
               final prefs = await SharedPreferences.getInstance();
               final userId = prefs.getString('userId');
               final token = prefs.getString('token') ?? '';
               if (userId != null && userId.isNotEmpty) {
-                await FirebaseMessaging.instance.subscribeToTopic(
-                  'user_' + userId,
-                );
-                // Proactively connect socket and map user
+                await FirebaseMessaging.instance.subscribeToTopic('user_$userId');
                 try {
-                  final sp = Provider.of<SocketProvider>(
-                    context,
-                    listen: false,
-                  );
+                  final sp = Provider.of<SocketProvider>(context, listen: false);
                   if (!sp.isConnected) {
-                    sp.connect(
-                      'https://garagebooking.onrender.com',
-                      token,
-                      userId,
-                    );
+                    sp.connect('https://garagebooking.onrender.com', token, userId);
                   } else {
                     sp.emit('join', userId);
                   }
@@ -231,37 +167,19 @@ class _LoginScreenState extends State<LoginScreen> {
           }
           return true;
         } else if (response.statusCode == 401 || response.statusCode == 400) {
-          // Server hoạt động nhưng sai thông tin đăng nhập
-          print('❌ Sai thông tin đăng nhập trên server: $url');
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Sai số điện thoại hoặc mật khẩu'),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
-          return true; // Server hoạt động, chỉ là sai thông tin
+          if (mounted) _showError('Sai số điện thoại hoặc mật khẩu');
+          return true;
         }
-      } catch (e) {
-        print('❌ Server $url failed: $e');
+      } catch (_) {
         continue;
       }
     }
-
-    print('❌ Tất cả server đều không hoạt động');
     return false;
   }
 
   Future<void> _saveUserData(Map<String, dynamic> userData) async {
     final prefs = await SharedPreferences.getInstance();
     final role = userData['vaiTro'] ?? 'user';
-
-    print('💾 Saving user data to SharedPreferences:');
-    print('   - Role: $role');
-    print('   - Name: ${userData['hoTen']}');
-    print('   - Phone: ${userData['soDienThoai']}');
-
     await prefs.setString('token', userData['token'] ?? '');
     await prefs.setString('userId', userData['_id'] ?? '');
     await prefs.setString('hoTen', userData['hoTen'] ?? '');
@@ -272,247 +190,347 @@ class _LoginScreenState extends State<LoginScreen> {
     if (userData['email'] != null) {
       await prefs.setString('email', userData['email'] ?? '');
     }
+  }
 
-    // Verify saved data
-    final savedRole = prefs.getString('vaiTro');
-    print('✅ Verified saved role: $savedRole');
+  void _showError(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.error_outline, color: Colors.white, size: 18),
+            const SizedBox(width: 8),
+            Expanded(child: Text(msg)),
+          ],
+        ),
+        backgroundColor: AppTheme.error,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
+  }
+
+  void _showSuccess(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle_outline, color: Colors.white, size: 18),
+            const SizedBox(width: 8),
+            Expanded(child: Text(msg)),
+          ],
+        ),
+        backgroundColor: AppTheme.success,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Đăng nhập Nhà xe Hà Phương'),
-        backgroundColor: Colors.blue,
-        foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const TestAccountsScreen(),
-                ),
-              );
-            },
-            icon: const Icon(Icons.help_outline),
-            tooltip: 'Tài khoản test',
+      body: Stack(
+        children: [
+          // Background gradient
+          Container(
+            height: size.height * 0.42,
+            decoration: const BoxDecoration(
+              gradient: AppTheme.primaryGradient,
+            ),
           ),
-        ],
-      ),
-      body: SimpleBackground(
-        colors: [Colors.blue.shade50, Colors.blue.shade100],
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const SizedBox(height: 40),
-
-              // Simple Logo
-              AnimatedLogo(size: 120, text: 'GarageBooking'),
-
-              const SizedBox(height: 40),
-
-              // Welcome text with gradient
-              ShaderMask(
-                shaderCallback: (bounds) => LinearGradient(
-                  colors: [
-                    Colors.blue.shade600,
-                    Colors.purple.shade600,
-                    Colors.green.shade600,
-                  ],
-                ).createShader(bounds),
-                child: const Text(
-                  'Chào mừng đến với GarageBooking',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-
-              const SizedBox(height: 8),
-
-              Text(
-                'Đặt vé xe khách dễ dàng và nhanh chóng',
-                style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
-                textAlign: TextAlign.center,
-              ),
-
-              const SizedBox(height: 40),
-
-              // Simple card container for form
-              SimpleCard(
-                padding: const EdgeInsets.all(24),
+          // Bottom background
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: size.height * 0.62,
+            child: Container(color: AppTheme.background),
+          ),
+          // Content
+          SafeArea(
+            child: FadeTransition(
+              opacity: _fadeAnim,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Column(
                   children: [
-                    // Phone input with beautiful styling
-                    TextField(
-                      controller: _phoneController,
-                      decoration: InputDecoration(
-                        labelText: 'Số điện thoại',
-                        hintText: 'Nhập số điện thoại của bạn',
-                        prefixIcon: Icon(
-                          Icons.phone,
-                          color: Colors.blue.shade600,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(15),
-                          borderSide: BorderSide(color: Colors.blue.shade300),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(15),
-                          borderSide: BorderSide(
-                            color: Colors.blue.shade600,
-                            width: 2,
-                          ),
-                        ),
-                        filled: true,
-                        fillColor: Colors.white.withOpacity(0.8),
-                      ),
-                      keyboardType: TextInputType.phone,
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    // Password input with beautiful styling
-                    TextField(
-                      controller: _passwordController,
-                      decoration: InputDecoration(
-                        labelText: 'Mật khẩu',
-                        hintText: 'Nhập mật khẩu của bạn',
-                        prefixIcon: Icon(
-                          Icons.lock,
-                          color: Colors.blue.shade600,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(15),
-                          borderSide: BorderSide(color: Colors.blue.shade300),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(15),
-                          borderSide: BorderSide(
-                            color: Colors.blue.shade600,
-                            width: 2,
-                          ),
-                        ),
-                        filled: true,
-                        fillColor: Colors.white.withOpacity(0.8),
-                      ),
-                      obscureText: true,
-                    ),
-
-                    const SizedBox(height: 30),
-
-                    // Beautiful gradient login button
-                    SizedBox(
-                      width: double.infinity,
-                      height: 55,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              Colors.blue.shade600,
-                              Colors.purple.shade600,
+                    const SizedBox(height: 32),
+                    // Top: Logo + title
+                    Row(
+                      children: [
+                        Container(
+                          width: 52,
+                          height: 52,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.15),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              ),
                             ],
                           ),
-                          borderRadius: BorderRadius.circular(15),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.blue.withOpacity(0.3),
-                              blurRadius: 10,
-                              offset: const Offset(0, 5),
+                          child: const Icon(
+                            Icons.directions_bus_rounded,
+                            color: AppTheme.primary,
+                            size: 30,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Nhà xe Hà Phương',
+                              style: GoogleFonts.inter(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                              ),
+                            ),
+                            Text(
+                              'Đặt vé nhanh, đi xe tiện lợi',
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                color: Colors.white.withOpacity(0.8),
+                              ),
                             ),
                           ],
                         ),
-                        child: ElevatedButton(
-                          onPressed: _isLoading ? null : _handleLogin,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.transparent,
-                            shadowColor: Colors.transparent,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(15),
+                        const Spacer(),
+                        // Help button
+                        IconButton(
+                          onPressed: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const TestAccountsScreen(),
                             ),
                           ),
-                          child: _isLoading
-                              ? const CircularProgressIndicator(
-                                  color: Colors.white,
-                                )
-                              : const Text(
-                                  'Đăng nhập',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
+                          icon: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(
+                              Icons.help_outline_rounded,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 40),
+
+                    // Card form
+                    Container(
+                      decoration: BoxDecoration(
+                        color: AppTheme.surface,
+                        borderRadius: BorderRadius.circular(AppTheme.radiusXL),
+                        boxShadow: AppTheme.shadowCard,
+                      ),
+                      padding: const EdgeInsets.all(28),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Đăng nhập',
+                            style: GoogleFonts.inter(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w800,
+                              color: AppTheme.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Chào mừng bạn quay trở lại!',
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              color: AppTheme.textSecondary,
+                            ),
+                          ),
+                          const SizedBox(height: 28),
+
+                          // Phone field
+                          TextFormField(
+                            controller: _phoneController,
+                            keyboardType: TextInputType.phone,
+                            style: GoogleFonts.inter(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w500,
+                              color: AppTheme.textPrimary,
+                            ),
+                            decoration: InputDecoration(
+                              labelText: 'Số điện thoại',
+                              hintText: '0xxx xxx xxx',
+                              prefixIcon: const Icon(
+                                Icons.phone_rounded,
+                                size: 20,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Password field
+                          TextFormField(
+                            controller: _passwordController,
+                            obscureText: _obscurePassword,
+                            style: GoogleFonts.inter(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w500,
+                              color: AppTheme.textPrimary,
+                            ),
+                            decoration: InputDecoration(
+                              labelText: 'Mật khẩu',
+                              hintText: '••••••••',
+                              prefixIcon: const Icon(
+                                Icons.lock_rounded,
+                                size: 20,
+                              ),
+                              suffixIcon: IconButton(
+                                onPressed: () => setState(
+                                  () => _obscurePassword = !_obscurePassword,
+                                ),
+                                icon: Icon(
+                                  _obscurePassword
+                                      ? Icons.visibility_off_rounded
+                                      : Icons.visibility_rounded,
+                                  size: 20,
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          // Forgot password
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton(
+                              onPressed: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const ForgotPasswordScreen(),
+                                ),
+                              ),
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 4,
+                                  horizontal: 0,
+                                ),
+                              ),
+                              child: Text(
+                                'Quên mật khẩu?',
+                                style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppTheme.primary,
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(height: 8),
+
+                          // Login button
+                          AppGradientButton(
+                            label: 'Đăng nhập',
+                            onPressed: _isLoading ? null : _handleLogin,
+                            isLoading: _isLoading,
+                            icon: Icons.login_rounded,
+                          ),
+
+                          const SizedBox(height: 20),
+
+                          // Register link
+                          Center(
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  'Chưa có tài khoản? ',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 14,
+                                    color: AppTheme.textSecondary,
                                   ),
                                 ),
-                        ),
+                                GestureDetector(
+                                  onTap: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => const RegisterScreen(),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    'Đăng ký ngay',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppTheme.primary,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ),
+
+                    const SizedBox(height: 32),
+
+                    // Features row
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        _featureItem(Icons.bolt_rounded, 'Đặt vé\nnhanh'),
+                        _featureItem(Icons.shield_rounded, 'An toàn\n& tin cậy'),
+                        _featureItem(Icons.support_agent_rounded, 'Hỗ trợ\n24/7'),
+                      ],
+                    ),
+
+                    const SizedBox(height: 32),
                   ],
                 ),
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-              const SizedBox(height: 24),
-
-              // Register link with beautiful styling
-              TextButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const RegisterScreen(),
-                    ),
-                  );
-                },
-                child: ShaderMask(
-                  shaderCallback: (bounds) => LinearGradient(
-                    colors: [Colors.blue.shade600, Colors.purple.shade600],
-                  ).createShader(bounds),
-                  child: const Text(
-                    'Chưa có tài khoản? Đăng ký ngay',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
-
-              // Forgot password
-              TextButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const ForgotPasswordScreen(),
-                    ),
-                  );
-                },
-                child: ShaderMask(
-                  shaderCallback: (bounds) => LinearGradient(
-                    colors: [Colors.orange.shade600, Colors.pink.shade600],
-                  ).createShader(bounds),
-                  child: const Text(
-                    'Quên mật khẩu?',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              // Simple demo info card
-              const SizedBox(height: 40),
-            ],
+  Widget _featureItem(IconData icon, String label) {
+    return Column(
+      children: [
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: AppTheme.primary.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Icon(icon, color: AppTheme.primary, size: 24),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          label,
+          textAlign: TextAlign.center,
+          style: GoogleFonts.inter(
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+            color: AppTheme.textSecondary,
           ),
         ),
-      ),
+      ],
     );
   }
 }

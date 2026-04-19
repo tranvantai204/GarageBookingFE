@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
 
 class SimpleBackground extends StatelessWidget {
   final Widget child;
@@ -10,11 +11,13 @@ class SimpleBackground extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: colors ?? [Colors.blue.shade50, Colors.blue.shade100],
-        ),
+        gradient: colors != null
+            ? LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: colors!,
+              )
+            : AppTheme.backgroundGradient,
       ),
       child: child,
     );
@@ -38,15 +41,9 @@ class SimpleCard extends StatelessWidget {
     return Container(
       margin: margin,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(AppTheme.radiusLG),
+        color: AppTheme.surface,
+        boxShadow: AppTheme.shadowCard,
       ),
       child: Container(
         padding: padding ?? const EdgeInsets.all(16),

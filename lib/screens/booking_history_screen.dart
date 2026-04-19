@@ -11,6 +11,8 @@ import '../api/feedback_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../api/refund_service.dart';
 import '../utils/date_utils.dart';
+import '../theme/app_theme.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class BookingHistoryScreen extends StatefulWidget {
   final bool showAppBar;
@@ -409,17 +411,24 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
 
   Widget _buildSectionTitle(String title) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
       child: Row(
         children: [
-          const Icon(Icons.label, color: Colors.blue, size: 16),
-          const SizedBox(width: 6),
+          Container(
+            width: 4,
+            height: 16,
+            decoration: BoxDecoration(
+              gradient: AppTheme.primaryGradient,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 8),
           Text(
             title,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
+            style: GoogleFonts.inter(
+              fontWeight: FontWeight.w700,
               fontSize: 14,
-              color: Colors.blue,
+              color: AppTheme.textPrimary,
             ),
           ),
         ],
@@ -759,14 +768,11 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
     if (widget.showAppBar) {
       return Scaffold(
         appBar: AppBar(
-          title: Text('Lịch sử đặt vé'),
-          backgroundColor: Colors.blue,
-          foregroundColor: Colors.white,
+          title: const Text('Lịch sử đặt vé'),
         ),
         body: content,
       );
     }
-
     return content;
   }
 }

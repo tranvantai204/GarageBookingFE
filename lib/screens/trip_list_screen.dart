@@ -7,6 +7,8 @@ import '../models/trip.dart';
 import 'create_trip_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/date_utils.dart';
+import '../theme/app_theme.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class TripListScreen extends StatefulWidget {
   final bool showAppBar;
@@ -267,7 +269,7 @@ class _TripListScreenState extends State<TripListScreen> {
             );
           }
           return ListView.builder(
-            padding: const EdgeInsets.symmetric(vertical: 8),
+            padding: const EdgeInsets.fromLTRB(0, 8, 0, 16),
             itemCount: filteredTrips.length,
             itemBuilder: (context, index) {
               final trip = filteredTrips[index];
@@ -289,6 +291,7 @@ class _TripListScreenState extends State<TripListScreen> {
 
     final content = Column(
       children: [
+        _buildHeaderBanner(),
         _buildSearchBar(),
         _buildFilterBar(),
         Expanded(child: listContent),
@@ -419,30 +422,173 @@ class _TripListScreenState extends State<TripListScreen> {
     return content;
   }
 
+  Widget _buildHeaderBanner() {
+    if (_userRole == 'driver' || _userRole == 'tai_xe') {
+      return Container(
+        margin: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: AppTheme.primaryGradient,
+          borderRadius: BorderRadius.circular(AppTheme.radiusLG),
+          boxShadow: AppTheme.shadowPrimary,
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.25),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.local_shipping_rounded, color: Colors.white, size: 24),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _userName.isNotEmpty ? 'Xin chào, $_userName!' : 'Xin chào!',
+                    style: GoogleFonts.inter(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                  Text(
+                    'Danh sách chuyến được giao',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: Colors.white.withOpacity(0.85),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: AppTheme.primaryGradient,
+        borderRadius: BorderRadius.circular(AppTheme.radiusLG),
+        boxShadow: AppTheme.shadowPrimary,
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.25),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.directions_bus_rounded, color: Colors.white, size: 24),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _userName.isNotEmpty
+                      ? 'Xin chào, ${_userName.split(' ').last}! 👋'
+                      : 'Chào mừng bạn!',
+                  style: GoogleFonts.inter(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+                Text(
+                  'Tìm chuyến xe phù hợp với bạn',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: Colors.white.withOpacity(0.85),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (_userRole == 'admin')
+            ElevatedButton.icon(
+              onPressed: () async {
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const CreateTripScreen()),
+                );
+                if (result == true && mounted) {
+                  Provider.of<TripProvider>(context, listen: false).loadTrips();
+                }
+              },
+              icon: const Icon(Icons.add_rounded, size: 18),
+              label: Text(
+                'Tạo chuyến',
+                style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: AppTheme.primary,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                minimumSize: Size.zero,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppTheme.radiusMD),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildSearchBar() {
     return Container(
-      padding: const EdgeInsets.all(12),
-      color: Colors.white,
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(AppTheme.radiusMD),
+        boxShadow: AppTheme.shadowSM,
+      ),
       child: TextField(
         controller: _searchController,
         onChanged: (v) => setState(() => _searchQuery = v.trim()),
+        style: GoogleFonts.inter(
+          fontSize: 14,
+          color: AppTheme.textPrimary,
+        ),
         decoration: InputDecoration(
           hintText: 'Tìm tuyến đường, biển số, tài xế...',
-          prefixIcon: const Icon(Icons.search),
+          hintStyle: GoogleFonts.inter(
+            fontSize: 14,
+            color: AppTheme.textTertiary,
+          ),
+          prefixIcon: const Icon(
+            Icons.search_rounded,
+            color: AppTheme.textSecondary,
+            size: 20,
+          ),
           suffixIcon: _searchQuery.isNotEmpty
               ? IconButton(
-                  icon: const Icon(Icons.clear),
+                  icon: const Icon(
+                    Icons.close_rounded,
+                    size: 18,
+                    color: AppTheme.textSecondary,
+                  ),
                   onPressed: () {
                     _searchController.clear();
                     setState(() => _searchQuery = '');
                   },
                 )
               : null,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 12,
-            vertical: 10,
-          ),
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          filled: false,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         ),
       ),
     );
@@ -471,33 +617,95 @@ class _TripListScreenState extends State<TripListScreen> {
 
   Widget _buildFilterBar() {
     return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [
-            InputChip(
-              avatar: const Icon(Icons.date_range, size: 16),
-              label: Text(
-                (_fromDate == null || _toDate == null)
-                    ? 'Khoảng ngày'
-                    : '${AppDateUtils.formatVietnameseDate(_fromDate!)} - ${AppDateUtils.formatVietnameseDate(_toDate!)}',
-              ),
-              onPressed: _pickDateRange,
-              onDeleted: (_fromDate != null || _toDate != null)
+            _filterChip(
+              icon: Icons.date_range_rounded,
+              label: (_fromDate == null || _toDate == null)
+                  ? 'Khoảng ngày'
+                  : '${AppDateUtils.formatVietnameseDate(_fromDate!)} - ${AppDateUtils.formatVietnameseDate(_toDate!)}',
+              isActive: _fromDate != null || _toDate != null,
+              onTap: _pickDateRange,
+              onDelete: (_fromDate != null || _toDate != null)
                   ? () => setState(() {
-                      _fromDate = null;
-                      _toDate = null;
-                    })
+                        _fromDate = null;
+                        _toDate = null;
+                      })
                   : null,
             ),
             const SizedBox(width: 8),
-            FilterChip(
-              label: const Text('Chỉ còn chỗ'),
-              selected: _onlyAvailableSeats,
-              onSelected: (v) => setState(() => _onlyAvailableSeats = v),
+            _filterChip(
+              icon: Icons.event_seat_rounded,
+              label: 'Còn chỗ',
+              isActive: _onlyAvailableSeats,
+              onTap: () => setState(() => _onlyAvailableSeats = !_onlyAvailableSeats),
+              onDelete: _onlyAvailableSeats
+                  ? () => setState(() => _onlyAvailableSeats = false)
+                  : null,
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _filterChip({
+    required IconData icon,
+    required String label,
+    required bool isActive,
+    required VoidCallback onTap,
+    VoidCallback? onDelete,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: EdgeInsets.only(
+          left: 10,
+          right: onDelete != null ? 4 : 10,
+          top: 7,
+          bottom: 7,
+        ),
+        decoration: BoxDecoration(
+          color: isActive ? AppTheme.primary.withOpacity(0.12) : AppTheme.surface,
+          borderRadius: BorderRadius.circular(AppTheme.radiusRound),
+          border: Border.all(
+            color: isActive ? AppTheme.primary : AppTheme.divider,
+            width: 1.5,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 14,
+              color: isActive ? AppTheme.primary : AppTheme.textSecondary,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                color: isActive ? AppTheme.primary : AppTheme.textSecondary,
+              ),
+            ),
+            if (onDelete != null) ...
+              [
+                const SizedBox(width: 4),
+                GestureDetector(
+                  onTap: onDelete,
+                  child: Icon(
+                    Icons.close_rounded,
+                    size: 14,
+                    color: isActive ? AppTheme.primary : AppTheme.textSecondary,
+                  ),
+                ),
+              ],
           ],
         ),
       ),

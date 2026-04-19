@@ -63,6 +63,9 @@ dependencies:
   agora_rtc_engine: ^6.3.2     # Agora SDK cho voice/video call
   permission_handler: ^11.3.1  # Để xin quyền microphone/camera
 
+  # UI Enhancement
+  google_fonts: ^6.2.1         # Font Inter cho UI hiện đại
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

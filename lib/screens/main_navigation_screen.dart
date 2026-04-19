@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import '../widgets/logo_widget.dart';
 import '../providers/chat_provider.dart';
 import '../providers/socket_provider.dart';
 import 'voice_call_screen.dart';
 import 'trip_list_screen.dart';
 import 'profile_screen.dart';
 import 'admin_dashboard_screen.dart';
-import 'modern_chat_list_screen.dart'; // Use modern chat list screen
+import 'modern_chat_list_screen.dart';
 import 'notifications_center_screen.dart';
 import 'driver_trips_screen.dart';
 import 'booking_history_screen.dart';
@@ -19,6 +19,8 @@ import '../utils/event_bus.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../constants/api_constants.dart';
+import '../theme/app_theme.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
@@ -629,56 +631,79 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+      ),
+    );
     return Scaffold(
-      appBar: AppBar(
-        title: Row(
-          children: [
-            LogoWidget(size: 32, animated: false),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                _getAppBarTitle(),
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                ),
+      extendBodyBehindAppBar: false,
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(60),
+        child: Container(
+          decoration: const BoxDecoration(
+            gradient: AppTheme.primaryGradient,
+            boxShadow: [
+              BoxShadow(
+                color: Color(0x330D9488),
+                blurRadius: 12,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              child: Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.directions_bus_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _getAppBarTitle(),
+                      style: GoogleFonts.inter(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  _buildInboxIcon(),
+                ],
               ),
             ),
-          ],
+          ),
         ),
-        backgroundColor: Colors.blue.shade600,
-        foregroundColor: Colors.white,
-        elevation: 2,
-        actions: [_buildInboxIcon()],
       ),
       body: Stack(
         children: [
           IndexedStack(index: _currentIndex, children: _screens),
-          // Admin broadcast marquee at bottom
           Positioned(
             left: 0,
             right: 0,
-            bottom: 56, // above bottom nav
+            bottom: 70,
             child: _MaybeAdminMarquee(),
           ),
         ],
       ),
       bottomNavigationBar: Consumer<ChatProvider>(
         builder: (context, chatProvider, child) {
-          return BottomNavigationBar(
+          return _ModernBottomNav(
             currentIndex: _currentIndex,
-            onTap: (index) {
-              setState(() {
-                _currentIndex = index;
-              });
-            },
-            type: BottomNavigationBarType.fixed,
-            selectedItemColor: Colors.blue.shade700,
-            unselectedItemColor: Colors.grey.shade600,
-            selectedLabelStyle: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 12,
-            ),
+            onTap: (index) => setState(() => _currentIndex = index),
             items: _getNavItems(chatProvider.totalUnreadCount),
           );
         },
@@ -734,51 +759,148 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   }
 
   Widget _buildInboxIcon() {
-    return Container(
-      margin: const EdgeInsets.only(right: 4),
-      width: 48,
-      height: 48,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          IconButton(
-            icon: const Icon(Icons.inbox),
-            tooltip: 'Thông báo',
-            onPressed: () async {
-              await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const NotificationsCenterScreen(),
-                ),
-              );
-              if (mounted) {
-                _loadNotificationCounts();
-              }
-            },
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        IconButton(
+          icon: Container(
+            padding: const EdgeInsets.all(7),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(
+              Icons.notifications_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
           ),
-          if (_totalNotifCount > 0)
-            Positioned(
-              right: 6,
-              top: 8,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.red,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+          tooltip: 'Thông báo',
+          onPressed: () async {
+            await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const NotificationsCenterScreen(),
+              ),
+            );
+            if (mounted) _loadNotificationCounts();
+          },
+        ),
+        if (_totalNotifCount > 0)
+          Positioned(
+            right: 6,
+            top: 6,
+            child: Container(
+              width: 18,
+              height: 18,
+              decoration: BoxDecoration(
+                color: AppTheme.accent,
+                borderRadius: BorderRadius.circular(9),
+                border: Border.all(color: AppTheme.primary, width: 1.5),
+              ),
+              child: Center(
                 child: Text(
-                  _totalNotifCount > 99 ? '99+' : _totalNotifCount.toString(),
-                  style: const TextStyle(
+                  _totalNotifCount > 9 ? '9+' : _totalNotifCount.toString(),
+                  style: GoogleFonts.inter(
                     color: Colors.white,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
                   ),
-                  textAlign: TextAlign.center,
                 ),
               ),
             ),
+          ),
+      ],
+    );
+  }
+}
+
+// ─── Modern Bottom Navigation Bar ─────────────────────────────────────────────
+
+class _ModernBottomNav extends StatelessWidget {
+  final int currentIndex;
+  final ValueChanged<int> onTap;
+  final List<BottomNavigationBarItem> items;
+
+  const _ModernBottomNav({
+    required this.currentIndex,
+    required this.onTap,
+    required this.items,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 20,
+            offset: const Offset(0, -4),
+          ),
         ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: List.generate(items.length, (index) {
+              final item = items[index];
+              final isActive = currentIndex == index;
+              return Expanded(
+                child: GestureDetector(
+                  onTap: () => onTap(index),
+                  behavior: HitTestBehavior.opaque,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeInOut,
+                    padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                    decoration: BoxDecoration(
+                      color: isActive
+                          ? AppTheme.primary.withOpacity(0.1)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(AppTheme.radiusMD),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconTheme(
+                          data: IconThemeData(
+                            color: isActive
+                                ? AppTheme.primary
+                                : AppTheme.textTertiary,
+                            size: 22,
+                          ),
+                          child: isActive
+                              ? (item.activeIcon ?? item.icon)
+                              : item.icon,
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          item.label ?? '',
+                          style: GoogleFonts.inter(
+                            fontSize: 10,
+                            fontWeight: isActive
+                                ? FontWeight.w700
+                                : FontWeight.w400,
+                            color: isActive
+                                ? AppTheme.primary
+                                : AppTheme.textTertiary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ),
+        ),
       ),
     );
   }

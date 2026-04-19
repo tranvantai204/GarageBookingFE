@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
 
 class LogoWidget extends StatelessWidget {
   final double size;
@@ -8,7 +9,7 @@ class LogoWidget extends StatelessWidget {
   const LogoWidget({
     super.key,
     this.size = 100,
-    this.animated = false, // Tắt animation để tối ưu
+    this.animated = false,
     this.color,
   });
 
@@ -18,21 +19,14 @@ class LogoWidget extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Colors.blue.shade600, Colors.blue.shade800],
-        ),
-        borderRadius: BorderRadius.circular(size * 0.2),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.blue.withOpacity(0.3),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        color: Colors.white.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(size * 0.22),
       ),
-      child: Icon(Icons.directions_bus, size: size * 0.4, color: Colors.white),
+      child: Icon(
+        Icons.directions_bus_rounded,
+        size: size * 0.55,
+        color: Colors.white,
+      ),
     );
   }
 }
@@ -48,15 +42,18 @@ class AnimatedLogo extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        LogoWidget(size: size, animated: false),
-        const SizedBox(height: 16),
-        Text(
-          text,
-          style: TextStyle(
-            fontSize: size * 0.15,
-            fontWeight: FontWeight.bold,
-            color: Colors.blue.shade700,
-            letterSpacing: 1.5,
+        Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(size * 0.22),
+            boxShadow: AppTheme.shadowPrimary,
+          ),
+          child: Icon(
+            Icons.directions_bus_rounded,
+            size: size * 0.55,
+            color: AppTheme.primary,
           ),
         ),
       ],

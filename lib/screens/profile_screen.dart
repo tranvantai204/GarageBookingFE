@@ -5,6 +5,8 @@ import 'admin_user_management_screen.dart';
 import '../utils/event_bus.dart';
 import 'wallet_screen.dart';
 import 'driver_apply_screen.dart';
+import '../theme/app_theme.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class ProfileScreen extends StatefulWidget {
   final bool showAppBar;
@@ -28,11 +30,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     _loadUserInfo();
-    // Lắng nghe sự kiện ví thay đổi để cập nhật realtime ở màn tài khoản
     EventBus().stream.listen((event) {
-      if (event == Events.walletUpdated) {
-        _loadUserInfo();
-      }
+      if (event == Events.walletUpdated) _loadUserInfo();
     });
   }
 
@@ -43,8 +42,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _userRole = prefs.getString('vaiTro') ?? 'user';
       _userPhone = prefs.getString('soDienThoai') ?? '';
       _walletBalance = prefs.getInt('viSoDu') ?? 0;
-      _autoOpenChatOnForeground =
-          prefs.getBool('autoOpenChatOnForeground') ?? true;
+      _autoOpenChatOnForeground = prefs.getBool('autoOpenChatOnForeground') ?? true;
       _showAdminTicker = prefs.getBool('showAdminTicker') ?? true;
       _callSystemPopupOnly = prefs.getBool('callSystemPopupOnly') ?? false;
     });
@@ -52,322 +50,397 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   String _getRoleDisplayName() {
     switch (_userRole) {
-      case 'admin':
-        return 'QUẢN TRỊ VIÊN';
+      case 'admin': return 'QUẢN TRỊ VIÊN';
       case 'driver':
-      case 'tai_xe':
-        return 'TÀI XẾ';
+      case 'tai_xe': return 'TÀI XẾ';
       case 'user':
-      default:
-        return 'KHÁCH HÀNG';
+      default: return 'KHÁCH HÀNG';
     }
   }
 
   Color _getRoleColor() {
     switch (_userRole) {
-      case 'admin':
-        return Colors.red.shade700;
+      case 'admin': return AppTheme.error;
       case 'driver':
-      case 'tai_xe':
-        return Colors.blue.shade700;
+      case 'tai_xe': return AppTheme.info;
       case 'user':
-      default:
-        return Colors.green.shade700;
+      default: return AppTheme.success;
     }
   }
 
   Future<void> _logout() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(
+          'Xác nhận đăng xuất',
+          style: GoogleFonts.inter(fontWeight: FontWeight.w700),
+        ),
+        content: Text(
+          'Bạn có chắc chắn muốn đăng xuất không?',
+          style: GoogleFonts.inter(color: AppTheme.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.error,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Đăng xuất'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
     try {
       final prefs = await SharedPreferences.getInstance();
-
-      // Xóa tất cả dữ liệu user
       await prefs.clear();
-
       if (mounted) {
-        // Hiển thị thông báo đăng xuất
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Đã đăng xuất thành công'),
-            backgroundColor: Colors.green,
+          SnackBar(
+            content: const Text('Đã đăng xuất thành công'),
+            backgroundColor: AppTheme.success,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(16),
           ),
         );
-
-        // Chuyển về màn hình đăng nhập
         Navigator.of(context).pushReplacementNamed('/login');
       }
-    } catch (e) {
-      if (mounted) {
-        Navigator.of(context).pushReplacementNamed('/login');
-      }
+    } catch (_) {
+      if (mounted) Navigator.of(context).pushReplacementNamed('/login');
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final content = SingleChildScrollView(
-      padding: EdgeInsets.all(16),
       child: Column(
         children: [
-          // Avatar và thông tin cơ bản
-          Card(
-            child: Padding(
-              padding: EdgeInsets.all(20),
-              child: Column(
-                children: [
-                  CircleAvatar(
-                    radius: 50,
-                    backgroundColor: Colors.blue.shade100,
-                    child: Icon(Icons.person, size: 60, color: Colors.blue),
-                  ),
-                  SizedBox(height: 16),
-                  Text(
-                    _userName.isNotEmpty ? _userName : 'Người dùng',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                  ),
-                  SizedBox(height: 8),
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: _getRoleColor().withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      _getRoleDisplayName(),
-                      style: TextStyle(
-                        color: _getRoleColor(),
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
+          // ─── Hero Header ────────────────────────────────────────────
+          Container(
+            decoration: const BoxDecoration(
+              gradient: AppTheme.primaryGradient,
+            ),
+            padding: const EdgeInsets.fromLTRB(20, 28, 20, 28),
+            child: Column(
+              children: [
+                // Avatar
+                Container(
+                  width: 84,
+                  height: 84,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 3),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.2),
+                        blurRadius: 16,
+                        offset: const Offset(0, 6),
                       ),
+                    ],
+                  ),
+                  child: Icon(
+                    _userRole == 'admin'
+                        ? Icons.admin_panel_settings_rounded
+                        : _userRole == 'driver' || _userRole == 'tai_xe'
+                            ? Icons.drive_eta_rounded
+                            : Icons.person_rounded,
+                    size: 44,
+                    color: _getRoleColor(),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  _userName.isNotEmpty ? _userName : 'Người dùng',
+                  style: GoogleFonts.inter(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(AppTheme.radiusRound),
+                    border: Border.all(color: Colors.white.withOpacity(0.4)),
+                  ),
+                  child: Text(
+                    _getRoleDisplayName(),
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                      letterSpacing: 0.5,
                     ),
                   ),
-                  if (_userPhone.isNotEmpty) ...[
-                    SizedBox(height: 8),
-                    Text(
-                      _userPhone,
-                      style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-                    ),
-                  ],
+                ),
+                if (_userPhone.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.phone_rounded,
+                        size: 13,
+                        color: Colors.white.withOpacity(0.8),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        _userPhone,
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          color: Colors.white.withOpacity(0.9),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
-              ),
+                const SizedBox(height: 16),
+                // Wallet balance card
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(AppTheme.radiusMD),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.account_balance_wallet_rounded,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Số dư ví: ',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          color: Colors.white.withOpacity(0.85),
+                        ),
+                      ),
+                      Text(
+                        '${_formatCurrency(_walletBalance)}đ',
+                        style: GoogleFonts.inter(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
 
-          SizedBox(height: 20),
+          // ─── Menu Sections ──────────────────────────────────────────
+          const SizedBox(height: 16),
 
-          // Menu options
-          Card(
-            child: Column(
-              children: [
-                ListTile(
-                  leading: Icon(
-                    Icons.account_balance_wallet,
-                    color: Colors.teal,
-                  ),
-                  title: Text('Ví của tôi'),
-                  subtitle: Text(
-                    'Số dư: ' + _formatCurrency(_walletBalance) + 'đ',
-                  ),
-                  trailing: Icon(Icons.arrow_forward_ios),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const WalletScreen()),
-                    ).then((_) => _loadUserInfo());
-                  },
+          // Tài khoản section
+          _sectionTitle('Tài khoản'),
+          _menuCard([
+            _menuItem(
+              icon: Icons.account_balance_wallet_rounded,
+              iconColor: const Color(0xFF0D9488),
+              title: 'Ví của tôi',
+              subtitle: 'Số dư: ${_formatCurrency(_walletBalance)}đ',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const WalletScreen()),
+              ).then((_) => _loadUserInfo()),
+            ),
+            if (_userRole == 'user') ...[
+              _divider(),
+              _menuItem(
+                icon: Icons.drive_eta_rounded,
+                iconColor: const Color(0xFF3B82F6),
+                title: 'Đăng ký làm tài xế',
+                subtitle: 'Trở thành đối tác lái xe',
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const DriverApplyScreen()),
                 ),
-                Divider(height: 1),
-                if (_userRole == 'user') ...[
-                  ListTile(
-                    leading: Icon(Icons.drive_eta, color: Colors.teal),
-                    title: Text('Đăng ký làm tài xế'),
-                    trailing: Icon(Icons.arrow_forward_ios),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const DriverApplyScreen(),
-                        ),
-                      );
-                    },
+              ),
+            ],
+            _divider(),
+            _menuItem(
+              icon: Icons.history_rounded,
+              iconColor: const Color(0xFFF59E0B),
+              title: 'Lịch sử đặt vé',
+              subtitle: 'Xem các vé đã đặt',
+              onTap: () => Navigator.pushNamed(context, '/booking_history'),
+            ),
+          ]),
+
+          if (_userRole == 'admin') ...[
+            _sectionTitle('Quản trị'),
+            _menuCard([
+              _menuItem(
+                icon: Icons.add_box_rounded,
+                iconColor: const Color(0xFF10B981),
+                title: 'Tạo chuyến đi',
+                subtitle: 'Thêm chuyến xe mới',
+                onTap: () => Navigator.pushNamed(context, '/create_trip'),
+              ),
+              _divider(),
+              _menuItem(
+                icon: Icons.people_rounded,
+                iconColor: const Color(0xFF6366F1),
+                title: 'Quản lý người dùng',
+                subtitle: 'Xem và quản lý tài khoản',
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const AdminUserManagementScreen(),
                   ),
-                  Divider(height: 1),
-                ],
-                SwitchListTile(
-                  secondary: Icon(
-                    Icons.chat_bubble_outline,
-                    color: Colors.purple,
-                  ),
-                  title: Text('Tự mở phòng chat khi đang mở app'),
-                  subtitle: Text(
-                    'Khi nhận tin nhắn mới trong lúc app đang hoạt động',
-                  ),
-                  value: _autoOpenChatOnForeground,
-                  onChanged: (v) async {
-                    final prefs = await SharedPreferences.getInstance();
-                    await prefs.setBool('autoOpenChatOnForeground', v);
-                    setState(() => _autoOpenChatOnForeground = v);
-                    EventBus().emit(Events.settingsChanged);
-                  },
                 ),
-                Divider(height: 1),
-                SwitchListTile(
-                  secondary: Icon(
-                    Icons.campaign_outlined,
-                    color: Colors.orange,
-                  ),
-                  title: Text('Hiển thị ticker thông báo Admin'),
-                  subtitle: Text('Thanh chạy thông báo dưới ứng dụng'),
-                  value: _showAdminTicker,
-                  onChanged: (v) async {
-                    final prefs = await SharedPreferences.getInstance();
-                    await prefs.setBool('showAdminTicker', v);
-                    setState(() => _showAdminTicker = v);
-                    EventBus().emit(Events.settingsChanged);
-                  },
-                ),
-                Divider(height: 1),
-                SwitchListTile(
-                  secondary: Icon(
-                    Icons.notification_important_outlined,
-                    color: Colors.red,
-                  ),
+              ),
+            ]),
+          ],
+
+          if (_userRole == 'driver' || _userRole == 'tai_xe') ...[
+            _sectionTitle('Tài xế'),
+            _menuCard([
+              _menuItem(
+                icon: Icons.edit_rounded,
+                iconColor: const Color(0xFF3B82F6),
+                title: 'Cập nhật thông tin tài xế',
+                subtitle: 'Chỉnh sửa hồ sơ lái xe',
+                onTap: () async {
+                  final result = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const DriverProfileUpdateScreen(),
+                    ),
+                  );
+                  if (result == true) _loadUserInfo();
+                },
+              ),
+              _divider(),
+              _menuItem(
+                icon: Icons.qr_code_scanner_rounded,
+                iconColor: const Color(0xFF0D9488),
+                title: 'Quét mã QR',
+                subtitle: 'Xác nhận vé hành khách',
+                onTap: () => Navigator.pushNamed(context, '/qr_scanner'),
+              ),
+            ]),
+          ],
+
+          _sectionTitle('Cài đặt'),
+          _menuCard([
+            _switchItem(
+              icon: Icons.chat_bubble_outline_rounded,
+              iconColor: const Color(0xFF8B5CF6),
+              title: 'Tự mở chat khi có tin nhắn',
+              subtitle: 'Khi app đang mở',
+              value: _autoOpenChatOnForeground,
+              onChanged: (v) async {
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.setBool('autoOpenChatOnForeground', v);
+                setState(() => _autoOpenChatOnForeground = v);
+                EventBus().emit(Events.settingsChanged);
+              },
+            ),
+            _divider(),
+            _switchItem(
+              icon: Icons.campaign_outlined,
+              iconColor: const Color(0xFFF59E0B),
+              title: 'Hiển thị ticker thông báo',
+              subtitle: 'Thanh thông báo Admin',
+              value: _showAdminTicker,
+              onChanged: (v) async {
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.setBool('showAdminTicker', v);
+                setState(() => _showAdminTicker = v);
+                EventBus().emit(Events.settingsChanged);
+              },
+            ),
+            _divider(),
+            _switchItem(
+              icon: Icons.call_rounded,
+              iconColor: const Color(0xFFEF4444),
+              title: 'Popup hệ thống cho cuộc gọi',
+              subtitle: 'Tránh đơ máy khi hiển thị overlay',
+              value: _callSystemPopupOnly,
+              onChanged: (v) async {
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.setBool('callSystemPopupOnly', v);
+                setState(() => _callSystemPopupOnly = v);
+              },
+            ),
+          ]),
+
+          _sectionTitle('Khác'),
+          _menuCard([
+            _menuItem(
+              icon: Icons.info_outline_rounded,
+              iconColor: const Color(0xFF6B7280),
+              title: 'Thông tin ứng dụng',
+              subtitle: 'v1.0.0 · Nhà xe Hà Phương',
+              onTap: () => showDialog(
+                context: context,
+                builder: (ctx) => AlertDialog(
                   title: Text(
-                    'Chỉ dùng popup hệ thống cho cuộc gọi (tránh đơ máy)',
+                    'Thông tin ứng dụng',
+                    style: GoogleFonts.inter(fontWeight: FontWeight.w700),
                   ),
-                  subtitle: Text(
-                    'Bật nếu máy bị treo khi hiển thị overlay trong-app',
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Ứng dụng đặt xe Hà Phương',
+                          style: GoogleFonts.inter()),
+                      Text('Phiên bản: 1.0.0', style: GoogleFonts.inter()),
+                      Text('Phát triển bởi: Tran Van Tai Development',
+                          style: GoogleFonts.inter()),
+                    ],
                   ),
-                  value: _callSystemPopupOnly,
-                  onChanged: (v) async {
-                    final prefs = await SharedPreferences.getInstance();
-                    await prefs.setBool('callSystemPopupOnly', v);
-                    setState(() => _callSystemPopupOnly = v);
-                  },
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('Đóng'),
+                    ),
+                  ],
                 ),
-                Divider(height: 1),
+              ),
+            ),
+          ]),
 
-                ListTile(
-                  leading: Icon(Icons.history, color: Colors.blue),
-                  title: Text('Lịch sử đặt vé'),
-                  trailing: Icon(Icons.arrow_forward_ios),
-                  onTap: () {
-                    Navigator.pushNamed(context, '/booking_history');
-                  },
+          // Logout button
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+            child: SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: OutlinedButton.icon(
+                onPressed: _logout,
+                icon: const Icon(Icons.logout_rounded, size: 18),
+                label: Text(
+                  'Đăng xuất',
+                  style: GoogleFonts.inter(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-                Divider(height: 1),
-                if (_userRole == 'admin') ...[
-                  ListTile(
-                    leading: Icon(Icons.add_box, color: Colors.green),
-                    title: Text('Tạo chuyến đi'),
-                    trailing: Icon(Icons.arrow_forward_ios),
-                    onTap: () {
-                      Navigator.pushNamed(context, '/create_trip');
-                    },
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppTheme.error,
+                  side: BorderSide(color: AppTheme.error.withOpacity(0.5), width: 1.5),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppTheme.radiusXXL),
                   ),
-                  Divider(height: 1),
-                  ListTile(
-                    leading: Icon(Icons.people, color: Colors.blue),
-                    title: Text('Quản lý người dùng'),
-                    trailing: Icon(Icons.arrow_forward_ios),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              const AdminUserManagementScreen(),
-                        ),
-                      );
-                    },
-                  ),
-                  Divider(height: 1),
-                ],
-                if (_userRole == 'driver' || _userRole == 'tai_xe') ...[
-                  ListTile(
-                    leading: Icon(Icons.edit, color: Colors.blue),
-                    title: Text('Cập nhật thông tin tài xế'),
-                    trailing: Icon(Icons.arrow_forward_ios),
-                    onTap: () async {
-                      final result = await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              const DriverProfileUpdateScreen(),
-                        ),
-                      );
-                      if (result == true) {
-                        // Reload user info if update was successful
-                        _loadUserInfo();
-                      }
-                    },
-                  ),
-                  Divider(height: 1),
-                  ListTile(
-                    leading: Icon(Icons.qr_code_scanner, color: Colors.blue),
-                    title: Text('Quét mã QR'),
-                    trailing: Icon(Icons.arrow_forward_ios),
-                    onTap: () {
-                      Navigator.pushNamed(context, '/qr_scanner');
-                    },
-                  ),
-                  Divider(height: 1),
-                ],
-                ListTile(
-                  leading: Icon(Icons.info, color: Colors.orange),
-                  title: Text('Thông tin ứng dụng'),
-                  trailing: Icon(Icons.arrow_forward_ios),
-                  onTap: () {
-                    showDialog(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: Text('Thông tin ứng dụng'),
-                        content: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Ứng dụng đặt xe Hà Phương'),
-                            Text('Phiên bản: 1.0.0'),
-                            Text('Phát triển bởi: Tran Van Tai Development'),
-                          ],
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: Text('Đóng'),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
                 ),
-                Divider(height: 1),
-                ListTile(
-                  leading: Icon(Icons.logout, color: Colors.red),
-                  title: Text('Đăng xuất'),
-                  trailing: Icon(Icons.arrow_forward_ios),
-                  onTap: () {
-                    showDialog(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: Text('Xác nhận đăng xuất'),
-                        content: Text('Bạn có chắc chắn muốn đăng xuất?'),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: Text('Hủy'),
-                          ),
-                          TextButton(
-                            onPressed: () {
-                              Navigator.pop(context);
-                              _logout();
-                            },
-                            child: Text('Đăng xuất'),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ],
+              ),
             ),
           ),
         ],
@@ -376,22 +449,153 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     if (widget.showAppBar) {
       return Scaffold(
-        appBar: AppBar(
-          title: Text('Tài khoản'),
-          backgroundColor: Colors.blue,
-          foregroundColor: Colors.white,
-        ),
+        appBar: AppBar(title: const Text('Tài khoản')),
         body: content,
       );
     }
-
     return content;
+  }
+
+  Widget _sectionTitle(String title) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+        child: Text(
+          title.toUpperCase(),
+          style: GoogleFonts.inter(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: AppTheme.textTertiary,
+            letterSpacing: 0.8,
+          ),
+        ),
+      );
+
+  Widget _menuCard(List<Widget> children) => Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16),
+        decoration: BoxDecoration(
+          color: AppTheme.surface,
+          borderRadius: BorderRadius.circular(AppTheme.radiusLG),
+          boxShadow: AppTheme.shadowCard,
+        ),
+        child: Column(children: children),
+      );
+
+  Widget _divider() => const Divider(height: 1, indent: 56, endIndent: 16);
+
+  Widget _menuItem({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    String? subtitle,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppTheme.radiusLG),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: iconColor.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, size: 18, color: iconColor),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textPrimary,
+                    ),
+                  ),
+                  if (subtitle != null)
+                    Text(
+                      subtitle,
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: AppTheme.textTertiary,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: AppTheme.textTertiary,
+              size: 20,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _switchItem({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: iconColor.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, size: 18, color: iconColor),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: AppTheme.textTertiary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: value,
+            onChanged: onChanged,
+          ),
+        ],
+      ),
+    );
   }
 
   String _formatCurrency(int amount) {
     return amount.toString().replaceAllMapped(
       RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-      (m) => m[1]! + ',',
+      (m) => '${m[1]},',
     );
   }
 }

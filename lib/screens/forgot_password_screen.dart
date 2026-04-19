@@ -3,6 +3,8 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../constants/api_constants.dart';
 import 'dart:async';
+import '../theme/app_theme.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -136,47 +138,134 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Quên mật khẩu')),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
+      appBar: AppBar(
+        title: const Text('Quên mật khẩu'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            // Bỏ số điện thoại: chỉ dùng email
-            TextField(
-              controller: _emailController,
-              keyboardType: TextInputType.emailAddress,
-              decoration: const InputDecoration(labelText: 'Email'),
+            const SizedBox(height: 16),
+            // Header info card
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppTheme.primary.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(AppTheme.radiusMD),
+                border: Border.all(color: AppTheme.primary.withOpacity(0.2)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline_rounded, color: AppTheme.primary, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Nhập email đã đăng ký để nhận mã OTP đặt lại mật khẩu.',
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        color: AppTheme.primary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 12),
-            if (_requested) ...[
-              TextField(
-                controller: _otpController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Mã OTP'),
+            const SizedBox(height: 24),
+            // Form card
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: AppTheme.surface,
+                borderRadius: BorderRadius.circular(AppTheme.radiusLG),
+                boxShadow: AppTheme.shadowCard,
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _newPassController,
-                obscureText: true,
-                decoration: const InputDecoration(labelText: 'Mật khẩu mới'),
-              ),
-            ],
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _loading
-                    ? null
-                    : (_requested
-                          ? _resetPassword
-                          : (_cooldown > 0 ? null : _requestOtp)),
-                child: Text(
-                  _requested
-                      ? 'Đổi mật khẩu'
-                      : (_cooldown > 0
-                            ? 'Gửi lại OTP ($_cooldown s)'
-                            : 'Gửi OTP'),
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Bước 1: Nhập email',
+                    style: GoogleFonts.inter(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    controller: _emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    style: GoogleFonts.inter(
+                      fontSize: 15,
+                      color: AppTheme.textPrimary,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Email',
+                      hintText: 'tenban@example.com',
+                      prefixIcon: Icon(Icons.email_rounded, size: 20),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  AppGradientButton(
+                    label: _cooldown > 0
+                        ? 'Gửi lại OTP ($_cooldown s)'
+                        : (_requested ? 'Gửi lại OTP' : 'Gửi OTP'),
+                    onPressed: _loading || _cooldown > 0 ? null : _requestOtp,
+                    isLoading: _loading && !_requested,
+                    icon: Icons.send_rounded,
+                  ),
+                  if (_requested) ...[
+                    const SizedBox(height: 24),
+                    const Divider(),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Bước 2: Nhập OTP và mật khẩu mới',
+                      style: GoogleFonts.inter(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    TextFormField(
+                      controller: _otpController,
+                      keyboardType: TextInputType.number,
+                      style: GoogleFonts.inter(
+                        fontSize: 15,
+                        color: AppTheme.textPrimary,
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: 'Mã OTP',
+                        hintText: '6 chữ số',
+                        prefixIcon: Icon(Icons.vpn_key_rounded, size: 20),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    TextFormField(
+                      controller: _newPassController,
+                      obscureText: true,
+                      style: GoogleFonts.inter(
+                        fontSize: 15,
+                        color: AppTheme.textPrimary,
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: 'Mật khẩu mới',
+                        hintText: '••••••••',
+                        prefixIcon: Icon(Icons.lock_rounded, size: 20),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    AppGradientButton(
+                      label: 'Đặt lại mật khẩu',
+                      onPressed: _loading ? null : _resetPassword,
+                      isLoading: _loading && _requested,
+                      icon: Icons.check_circle_rounded,
+                    ),
+                  ],
+                ],
               ),
             ),
           ],
